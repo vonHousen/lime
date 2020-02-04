@@ -11,7 +11,7 @@
 
 # Unit test / coverage reports
 .cache
-/buid/
+build/
 
 # Created by https://www.gitignore.io/api/pycharm
 
