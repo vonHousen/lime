@@ -12,6 +12,7 @@
 # Unit test / coverage reports
 .cache
 build/
+doc/notebooks/.ipynb_checkpoints/
 
 # Created by https://www.gitignore.io/api/pycharm
 
