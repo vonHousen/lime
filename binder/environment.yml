@@ -3,13 +3,14 @@ name: lime-dev
 channels:
   - conda-forge
 dependencies:
-  - python=3.6.*
+  - python=3.7.*
   # lime install dependencies
-  - matplotlib=2.*
+  - matplotlib
   - numpy
   - scipy
   - scikit-learn
   - scikit-image
+  - pyDOE2
   # for testing
   - flake8
   - pytest
@@ -17,6 +18,7 @@ dependencies:
   - jupyter
   - pandas
   - keras
+  - pytorch::pytorch-cpu
   - tensorflow
   - h2oai::h2o
   - py-xgboost

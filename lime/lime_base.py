@@ -1,7 +1,6 @@
 """
 Contains abstract functionality for learning locally linear sparse model.
 """
-from __future__ import print_function
 import numpy as np
 import scipy as sp
 from sklearn.linear_model import Ridge, lars_path
