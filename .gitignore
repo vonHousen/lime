@@ -70,3 +70,5 @@ fabric.properties
 
 # Pycharm
 .idea
+
+venv/
