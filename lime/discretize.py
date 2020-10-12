@@ -50,6 +50,7 @@ class BaseDiscretizer():
         # To override when implementing a custom binning
         bins = self.bins(data, labels)
         bins = [np.unique(x) for x in bins]
+        self.__bins = bins
 
         # Read the stats from data_stats if exists
         if data_stats:
@@ -96,6 +97,10 @@ class BaseDiscretizer():
         that form each bin of the discretizer
         """
         raise NotImplementedError("Must override bins() method")
+
+    @property
+    def bins_map(self):
+        return self.__bins
 
     def discretize(self, data):
         """Discretizes the data.
