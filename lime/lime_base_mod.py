@@ -67,21 +67,41 @@ class LimeBaseMod(LimeBase):
         Returns:
             (intercept, exp, score, local_pred):
             intercept is a float.
-            exp is a sorted list of tuples, where each tuple (x,y) corresponds
+            explanation is a sorted list of tuples, where each tuple (x,y) corresponds
             to the feature id (x) and the local weight (y). The list is sorted
             by decreasing absolute value of y.
             score is the R^2 value of the returned explanation
             local_pred is the prediction of the explanation model on the original instance
         """
 
-        # TODO pass complete model and samples here
-
-        return super().explain_instance_with_data(
+        weights = self.kernel_fn(distances)
+        labels_column = neighborhood_labels[:, label]
+        used_features = self.feature_selection(
             neighborhood_data,
-            neighborhood_labels,
-            distances,
-            label,
+            labels_column,
+            weights,
             num_features,
-            feature_selection,
-            model_regressor
-        )
+            feature_selection)
+        data_to_train_local_surrogate = neighborhood_data[:, used_features]
+
+        if model_regressor is None:
+            model_regressor = Ridge(
+                alpha=1,
+                fit_intercept=True,
+                random_state=self.random_state)
+        local_surrogate = model_regressor
+        local_surrogate.fit(
+            data_to_train_local_surrogate,
+            labels_column,
+            sample_weight=weights)
+
+        explanation = sorted(
+            zip(used_features, local_surrogate.coef_),
+            key=lambda x: np.abs(x[1]),
+            reverse=True)
+
+        return (local_surrogate.intercept_,
+                explanation,
+                local_surrogate,
+                data_to_train_local_surrogate,
+                weights)

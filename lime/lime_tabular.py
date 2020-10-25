@@ -139,7 +139,8 @@ class LimeTabularExplainer(object):
                  discretizer='quartile',
                  sample_around_instance=False,
                  random_state=None,
-                 training_data_stats=None):
+                 training_data_stats=None,
+                 custom_lime_base_constructor=lime_base.LimeBase):
         """Init function.
 
         Args:
@@ -253,7 +254,7 @@ class LimeTabularExplainer(object):
         kernel_fn = partial(kernel, kernel_width=kernel_width)
 
         self.feature_selection = feature_selection
-        self.base = lime_base.LimeBase(kernel_fn, verbose, random_state=self.random_state)
+        self.base = custom_lime_base_constructor(kernel_fn, verbose, self.random_state)
         self.class_names = class_names
 
         # Though set has no role to play if training data stats are provided
@@ -385,24 +386,14 @@ class LimeTabularExplainer(object):
         """
         Method calculates prerequisites for explain_instance_with_data().
         """
-        if sp.sparse.issparse(data_row) and not sp.sparse.isspmatrix_csr(data_row):
-            # Preventative code: if sparse, convert to csr format if not in csr format already
-            data_row = data_row.tocsr()
-        data, inverse = self.__data_inverse(data_row, num_samples, sampling_method)
-        if sp.sparse.issparse(data):
-            # Note in sparse case we don't subtract mean since data would become dense
-            scaled_data = data.multiply(self.scaler.scale_)
-            # Multiplying with csr matrix can return a coo sparse matrix
-            if not sp.sparse.isspmatrix_csr(scaled_data):
-                scaled_data = scaled_data.tocsr()
-        else:
-            scaled_data = (data - self.scaler.mean_) / self.scaler.scale_
-        distances = sklearn.metrics.pairwise_distances(
-            scaled_data,
-            scaled_data[0].reshape(1, -1),
-            metric=distance_metric
-        ).ravel()
+        data_row, distances, inverse, scaled_data = self._process_raw_data(
+            data_row,
+            distance_metric,
+            num_samples,
+            sampling_method)
+
         yss = predict_fn(inverse)
+
         # for classification, the model needs to provide a list of tuples - classes
         # along with prediction probabilities
         if self.mode == "classification":
@@ -448,6 +439,20 @@ class LimeTabularExplainer(object):
 
             # add a dimension to be compatible with downstream machinery
             yss = yss[:, np.newaxis]
+
+        categorical_features, discretized_feature_names, feature_indexes, feature_names, values = \
+            self._process_features(data_row, scaled_data)
+
+        domain_mapper = TableDomainMapper(feature_names,
+                                          values,
+                                          scaled_data[0],
+                                          categorical_features=categorical_features,
+                                          discretized_feature_names=discretized_feature_names,
+                                          feature_indexes=feature_indexes)
+
+        return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss
+
+    def _process_features(self, data_row, scaled_data):
         feature_names = copy.deepcopy(self.feature_names)
         if feature_names is None:
             feature_names = [str(x) for x in range(data_row.shape[0])]
@@ -468,19 +473,33 @@ class LimeTabularExplainer(object):
         categorical_features = self.categorical_features
         discretized_feature_names = None
         if self.discretizer is not None:
-            categorical_features = range(data.shape[1])
+            categorical_features = range(scaled_data.shape[1])
             discretized_instance = self.discretizer.discretize(data_row)
             discretized_feature_names = copy.deepcopy(feature_names)
             for f in self.discretizer.names:
                 discretized_feature_names[f] = self.discretizer.names[f][int(
                     discretized_instance[f])]
-        domain_mapper = TableDomainMapper(feature_names,
-                                          values,
-                                          scaled_data[0],
-                                          categorical_features=categorical_features,
-                                          discretized_feature_names=discretized_feature_names,
-                                          feature_indexes=feature_indexes)
-        return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss
+        return categorical_features, discretized_feature_names, feature_indexes, feature_names, values
+
+    def _process_raw_data(self, data_row, distance_metric, num_samples, sampling_method):
+        if sp.sparse.issparse(data_row) and not sp.sparse.isspmatrix_csr(data_row):
+            # Preventative code: if sparse, convert to csr format if not in csr format already
+            data_row = data_row.tocsr()
+        data, inverse = self.__data_inverse(data_row, num_samples, sampling_method)
+        if sp.sparse.issparse(data):
+            # Note in sparse case we don't subtract mean since data would become dense
+            scaled_data = data.multiply(self.scaler.scale_)
+            # Multiplying with csr matrix can return a coo sparse matrix
+            if not sp.sparse.isspmatrix_csr(scaled_data):
+                scaled_data = scaled_data.tocsr()
+        else:
+            scaled_data = (data - self.scaler.mean_) / self.scaler.scale_
+        distances = sklearn.metrics.pairwise_distances(
+            scaled_data,
+            scaled_data[0].reshape(1, -1),
+            metric=distance_metric
+        ).ravel()
+        return data_row, distances, inverse, scaled_data
 
     def __data_inverse(self,
                        data_row,
