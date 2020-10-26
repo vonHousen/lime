@@ -6,6 +6,8 @@ import warnings
 import numpy as np
 from . import explanation_mod, lime_base_mod
 from lime.lime_tabular import LimeTabularExplainer, TableDomainMapper
+from scipy.special import softmax
+from sklearn import metrics
 
 
 class LimeTabularExplainerMod(LimeTabularExplainer):
@@ -212,7 +214,11 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss
 
     @staticmethod
-    def __evaluate_explainer_on_training_data(local_surrogate, training_data, labels, weights):
+    def __evaluate_single_explainer(local_surrogate, training_data, labels, weights):
+        """
+        Evaluates single local surrogate on training data, using built-in score function.
+        Method uses coefficient of determination R^2 of the prediction as loss function.
+        """
         prediction_score = local_surrogate.score(
             training_data,
             labels,
@@ -220,6 +226,22 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         local_pred = local_surrogate.predict(
             training_data[0, :].reshape(1, -1))[0]
         return local_pred, prediction_score
+
+    @staticmethod
+    def __evaluate_ensemble(local_surrogates_ensemble, training_data, expected_probabilities):
+        """
+        Evaluates ensemble of local surrogates, by comparing softmax of their probabilities and expected ones,
+        without weighing them. Loss function is MSE.
+        """
+        predicted_probabilities = np.zeros((training_data.shape[0], expected_probabilities.shape[1]), dtype="float")
+        for label in range(expected_probabilities.shape[1]):
+            local_surrogate = local_surrogates_ensemble[label]
+            predicted_probabilities[:, label] = local_surrogate.predict(training_data)
+        predicted_probabilities_softmax = softmax(predicted_probabilities, axis=1)
+        prediction_loss = metrics.mean_squared_error(
+            y_true=expected_probabilities, y_pred=predicted_probabilities_softmax)
+
+        return prediction_loss
 
     def __create_explanation(self,
                              distances,
@@ -244,6 +266,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             new_explanation.top_labels.reverse()
         new_explanation.used_labels = labels
 
+        local_surrogates_ensemble = {}
+
         for label in labels:
             (intercept, feature_with_coef, local_surrogate, data_used_to_train_local_surrogate, examples_weights) =\
                 self.base.explain_instance_with_data(
@@ -255,8 +279,10 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                     model_regressor=model_regressor,
                     feature_selection=self.feature_selection)
 
+            local_surrogates_ensemble[label] = local_surrogate
+
             labels_column = yss[:, label]
-            training_score, predicted_probability = self.__evaluate_explainer_on_training_data(
+            training_score, predicted_probability = self.__evaluate_single_explainer(
                 local_surrogate,
                 data_used_to_train_local_surrogate,
                 labels_column,
@@ -270,6 +296,11 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             # TODO deprecated fields
             new_explanation.score = training_score
             new_explanation.local_pred = predicted_probability
+
+        new_explanation.prediction_training_loss = self.__evaluate_ensemble(
+            local_surrogates_ensemble,
+            training_data=scaled_data,
+            expected_probabilities=yss)
 
         return new_explanation
 

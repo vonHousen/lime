@@ -1,7 +1,7 @@
 
 from scipy.special import softmax
 from lime.explanation import Explanation
-from sklearn.metrics import log_loss
+from sklearn import metrics
 
 
 class ExplanationMod(Explanation):
@@ -27,6 +27,7 @@ class ExplanationMod(Explanation):
         self.used_labels = None
         self.probabilities_for_surrogate_model = {}
         self.scores_on_generated_data = {}
+        self.prediction_training_loss = None
 
     def _get_labels_ordered(self, order):
         """
@@ -71,14 +72,14 @@ class ExplanationMod(Explanation):
             prediction_scores.append(self.scores_on_generated_data[label])
         return prediction_scores
 
-    def get_fidelity_loss(self):
+    def get_explanation_fidelity_loss(self):
         """
         Function assesses efficiency of surrogate model by comparing its prediction probabilities and explained
-        model's ones. Uses cross-entropy function for calculations.
+        model's ones. Uses MSE as loss function.
         """
         expected = self.get_probabilities_for_explained_model()
         predicted = self.get_probabilities_for_surrogate_model(normalized=True)
-        return log_loss(
+        return metrics.mean_squared_error(
             y_true=expected,
             y_pred=predicted
         )
