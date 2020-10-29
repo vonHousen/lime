@@ -24,23 +24,25 @@ class ExplanationMod(Explanation):
             class_names=class_names,
             random_state=random_state
         )
-        self.used_labels = None
+        self.explained_labels_id = None
         self.probabilities_for_surrogate_model = {}
         self.scores_on_generated_data = {}
         self.losses_on_generated_data = {}
         self.prediction_loss_on_training_data = None
+        self.squared_errors_matrix = None
+        self.training_data_distances = None
 
     def _get_labels_ordered(self, order):
         """
         Returns labels used in explanation in selected order.
         :param order:
-                - default - order used in explaining
-                - ordered - labels sorted in ascending order
+                - ordered - same order as used during creating explanation
+                - default - labels sorted in ascending order, the default sequence as in original dataset
         """
-        if order == "default":
-            return self.used_labels
-        elif order == "ordered":
-            ordered_labels = list(self.used_labels)
+        if order == "ordered":
+            return self.explained_labels_id
+        elif order == "default":
+            ordered_labels = list(self.explained_labels_id)
             ordered_labels.sort()
             return ordered_labels
         else:
@@ -93,7 +95,7 @@ class ExplanationMod(Explanation):
         Uses MSE as loss function.
         """
         expected = self.get_prediction_for_explained_model()
-        predicted = self.get_prediction_for_surrogate_model(normalized=True)
+        predicted = self.get_prediction_for_surrogate_model(normalized=True, order="default")
         return metrics.mean_squared_error(
             y_true=expected,
             y_pred=predicted

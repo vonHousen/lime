@@ -250,10 +250,11 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             training_data_for_local_surrogate = data_subset_for_each_explainer[label]
             predicted_probabilities[:, label] = local_surrogate.predict(training_data_for_local_surrogate)
         predicted_probabilities_softmax = softmax(predicted_probabilities, axis=1)
-        prediction_loss = metrics.mean_squared_error(
+        prediction_loss_on_training_data = metrics.mean_squared_error(
             y_true=expected_probabilities, y_pred=predicted_probabilities_softmax)
+        squared_errors_matrix = (expected_probabilities - predicted_probabilities_softmax)**2
 
-        return prediction_loss
+        return prediction_loss_on_training_data, squared_errors_matrix
 
     def __create_explanation(self,
                              distances,
@@ -273,29 +274,33 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
 
         new_explanation.predict_proba = yss[0]
         if top_labels:
-            labels = np.argsort(yss[0])[-top_labels:]
-            new_explanation.top_labels = list(labels)
+            label_indices_to_explain = np.argsort(yss[0])[-top_labels:]
+            # legacy fields
+            new_explanation.top_labels = list(label_indices_to_explain)
             new_explanation.top_labels.reverse()
-        new_explanation.used_labels = labels
+        else:
+            label_indices_to_explain = labels
+
+        new_explanation.explained_labels_id = list(label_indices_to_explain)
 
         local_surrogates_ensemble = {}
         datasets_for_each_explainer = {}
 
-        for label in labels:
+        for label_idx in label_indices_to_explain:
             (intercept, feature_with_coef, local_surrogate, data_used_to_train_local_surrogate, examples_weights) =\
                 self.base.explain_instance_with_data(
                     scaled_data,
                     yss,
                     distances,
-                    label,
+                    label_idx,
                     num_features,
                     model_regressor=model_regressor,
                     feature_selection=self.feature_selection)
 
-            local_surrogates_ensemble[label] = local_surrogate
-            datasets_for_each_explainer[label] = data_used_to_train_local_surrogate
+            local_surrogates_ensemble[label_idx] = local_surrogate
+            datasets_for_each_explainer[label_idx] = data_used_to_train_local_surrogate
 
-            labels_column = yss[:, label]
+            labels_column = yss[:, label_idx]
             (prediction_on_explained_instance,
              prediction_score_on_training_data,
              prediction_loss_on_training_data) = self.__evaluate_single_explainer(
@@ -304,17 +309,19 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 labels_column,
                 examples_weights)
 
-            new_explanation.intercept[label] = intercept
-            new_explanation.local_exp[label] = feature_with_coef
-            new_explanation.probabilities_for_surrogate_model[label] = prediction_on_explained_instance
-            new_explanation.scores_on_generated_data[label] = prediction_score_on_training_data
-            new_explanation.losses_on_generated_data[label] = prediction_loss_on_training_data
+            new_explanation.intercept[label_idx] = intercept
+            new_explanation.local_exp[label_idx] = feature_with_coef
+            new_explanation.probabilities_for_surrogate_model[label_idx] = prediction_on_explained_instance
+            new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
+            new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
 
             # TODO deprecated fields
             new_explanation.score = prediction_score_on_training_data
             new_explanation.local_pred = prediction_on_explained_instance
 
-        new_explanation.prediction_loss_on_training_data = self.__evaluate_ensemble(
+        new_explanation.training_data_distances = distances
+        (new_explanation.prediction_loss_on_training_data,
+         new_explanation.squared_errors_matrix) = self.__evaluate_ensemble(
             local_surrogates_ensemble,
             data_subset_for_each_explainer=datasets_for_each_explainer,
             training_data=scaled_data,
