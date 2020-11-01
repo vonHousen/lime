@@ -3,6 +3,10 @@ from scipy.special import softmax
 from lime.explanation import Explanation
 from sklearn import metrics
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 
 class ExplanationMod(Explanation):
     """Modified explanation class, providing efficiency assessing functions."""
@@ -34,10 +38,14 @@ class ExplanationMod(Explanation):
 
     def _get_labels_ordered(self, order):
         """
-        Returns labels used in explanation in selected order.
-        :param order:
-                - ordered - same order as used during creating explanation
+
+        Args:
+             order:
+                - ordered - the same order as used during creating explanation
                 - default - labels sorted in ascending order, the default sequence as in original dataset
+
+        Returns:
+            list of labels in selected order.
         """
         if order == "ordered":
             return self.explained_labels_id
@@ -50,15 +58,25 @@ class ExplanationMod(Explanation):
 
     def get_prediction_for_explained_model(self):
         """
-        Returns prediction probabilities by explained model on given instance.
+        Returns:
+            list of predicted by explained model probabilities for each label.
         """
         return self.predict_proba
 
-    def get_prediction_for_surrogate_model(self, normalized=False, order="default"):
+    def get_prediction_for_surrogate_model(self,
+                                           normalized=False,
+                                           order="default"):
         """
         Returns prediction probabilities by surrogate model on given instance. In fact, surrogate model consists of
         a few models, each for a single label. Their predictions are made based on a subset of
-        (most important) features and can be normalized using softmax function.
+        (most important) features.
+
+        Args:
+            normalized - if True, predictions are normalized using softmax function.
+            order - order of returned labels' probabilities - see _get_labels_ordered().
+
+        Returns:
+            list of predicted by local surrogate probabilities for each label.
         """
         prediction_probabilities = []
         for label in self._get_labels_ordered(order):
@@ -68,20 +86,35 @@ class ExplanationMod(Explanation):
         else:
             return prediction_probabilities
 
-    def get_scores_for_surrogate_model(self, order="default"):
+    def get_scores_for_surrogate_model(self,
+                                       order="default"):
         """
         Returns prediction scores by surrogate model on its training dataset. Each label (and each sub-explainer) was
         evaluated separately.
+
+        Args:
+            order - order of returned scores - see _get_labels_ordered().
+
+        Returns:
+            list of R2 scores for each sub-explainer.
         """
         prediction_scores = []
         for label in self._get_labels_ordered(order):
             prediction_scores.append(self.scores_on_generated_data[label])
         return prediction_scores
 
-    def get_losses_for_surrogate_model(self, order="default"):
+    def get_losses_for_surrogate_model(self,
+                                       order="default"):
         """
         Returns prediction losses by surrogate model on its training dataset. Each label (and each sub-explainer) was
         evaluated separately.
+        Uses MSE as loss function.
+
+        Args:
+            order - order of returned losses - see _get_labels_ordered().
+
+        Returns:
+            list of MSE for each sub-explainer.
         """
         prediction_losses = []
         for label in self._get_labels_ordered(order):
@@ -93,6 +126,9 @@ class ExplanationMod(Explanation):
         Function assesses efficiency of surrogate model by comparing its prediction's probabilities and explained
         model's ones - prediction on explained data. Surrogate's prediction is first normalized.
         Uses MSE as loss function.
+
+        Returns:
+            scalar - fidelity loss (MSE) calculated on data instance to be explained.
         """
         expected = self.get_prediction_for_explained_model()
         predicted = self.get_prediction_for_surrogate_model(normalized=True, order="default")
@@ -106,5 +142,69 @@ class ExplanationMod(Explanation):
         Function assesses efficiency of surrogate model by comparing its predictions' probabilities and explained
         model's ones - predictions on training data. Ensemble of sub-explainers was treated as a single regressor.
         Uses MSE as loss function.
+
+        Returns:
+            scalar - fidelity loss (MSE) calculated on complete generated unweighted dataset.
         """
         return self.prediction_loss_on_training_data
+
+    def get_fidelity_distribution(self, bins=None, quantiles=None):
+        """
+        Functions returns fidelity of surrogate model based on every generated data instance used for its training.
+
+        Args:
+            bins: count of bins to use for grouping. If not none, returned errors are grouped in bins of equal width
+                (bins are created based on distance from original data instance).
+            quantiles: count of quantiles to use for grouping. If not none, returned errors are grouped in quantiles
+                (bins are created based on distance from original data instance).
+
+        Returns:
+            pd.Series of squared errors for each data instance.
+        """
+        training_data_squared_errors = np.mean(self.squared_errors_matrix, axis=1)
+        training_data_distances = self.training_data_distances
+        sorted_sequence = np.argsort(training_data_distances)
+        training_data = pd.DataFrame(
+            data=np.concatenate((
+                training_data_squared_errors[sorted_sequence].reshape((-1, 1)),
+                training_data_distances[sorted_sequence].reshape((-1, 1))),
+                axis=1),
+            columns=["squared_error", "distance"]
+        )
+        if bins is not None:
+            training_data["distance_binned"] = pd.cut(
+                training_data["distance"],
+                bins=bins,
+                right=False,
+                labels=[bin_id / bins for bin_id in range(1, bins + 1)])
+            training_data = training_data[["squared_error", "distance_binned"]]\
+                .groupby("distance_binned").mean()
+        elif quantiles is not None:
+            training_data["distance_quantile"] = pd.qcut(
+                training_data["distance"],
+                q=quantiles,
+                labels=[bin_id for bin_id in range(1, quantiles + 1)])
+            training_data = training_data[["squared_error", "distance_quantile"]]\
+                .groupby("distance_quantile").mean()
+        else:
+            training_data.set_index("distance", inplace=True)
+
+        return training_data["squared_error"]
+
+    def plot_fidelity_map(self):
+        squared_errors = self.get_fidelity_distribution()
+
+        plt.scatter(
+            x=(squared_errors.index) / np.mean(squared_errors.index.values),
+            y=squared_errors,
+            label="generated data instance",
+            marker=".")
+        plt.scatter(
+            x=(squared_errors.index[0]) / np.mean(squared_errors.index.values),
+            y=squared_errors.iloc[0],
+            label="original data instance",
+            marker=".")
+        plt.xlabel("normalized distance from original instance")
+        plt.ylabel("squared error of data instance")
+        plt.legend()
+        plt.show()
