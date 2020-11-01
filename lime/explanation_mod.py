@@ -61,7 +61,7 @@ class ExplanationMod(Explanation):
         Returns:
             list of predicted by explained model probabilities for each label.
         """
-        return self.predict_proba
+        return list(self.predict_proba)
 
     def get_prediction_for_surrogate_model(self,
                                            normalized=False,
@@ -82,7 +82,7 @@ class ExplanationMod(Explanation):
         for label in self._get_labels_ordered(order):
             prediction_probabilities.append(self.probabilities_for_surrogate_model[label])
         if normalized:
-            return softmax(prediction_probabilities)
+            return list(softmax(prediction_probabilities))
         else:
             return prediction_probabilities
 
@@ -148,9 +148,9 @@ class ExplanationMod(Explanation):
         """
         return self.prediction_loss_on_training_data
 
-    def get_fidelity_distribution(self, bins=None, quantiles=None):
+    def get_fidelity_loss_distribution(self, bins=None, quantiles=None):
         """
-        Functions returns fidelity of surrogate model based on every generated data instance used for its training.
+        Functions returns fidelity loss of surrogate model based on every generated data instance used for its training.
 
         Args:
             bins: count of bins to use for grouping. If not none, returned errors are grouped in bins of equal width
@@ -192,7 +192,7 @@ class ExplanationMod(Explanation):
         return training_data["squared_error"]
 
     def plot_fidelity_map(self):
-        squared_errors = self.get_fidelity_distribution()
+        squared_errors = self.get_fidelity_loss_distribution()
 
         plt.scatter(
             x=(squared_errors.index) / np.mean(squared_errors.index.values),
