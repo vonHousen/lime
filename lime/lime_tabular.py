@@ -306,7 +306,8 @@ class LimeTabularExplainer(object):
                          num_samples=5000,
                          distance_metric='euclidean',
                          model_regressor=None,
-                         sampling_method='gaussian'):
+                         sampling_method='gaussian',
+                         minkowski_norm=None):
         """Generates explanations for a prediction.
 
         First, we generate neighborhood data by randomly perturbing features
@@ -336,6 +337,7 @@ class LimeTabularExplainer(object):
                 and 'sample_weight' as a parameter to model_regressor.fit()
             sampling_method: Method to sample synthetic data. Defaults to Gaussian
                 sampling. Can also use Latin Hypercube Sampling.
+            minkowski_norm: When minkowski metric is chosen for distance_metric, this is p-norm to apply for it.
 
         Returns:
             An Explanation object (see explanation.py) with the corresponding
@@ -347,7 +349,8 @@ class LimeTabularExplainer(object):
                 distance_metric,
                 num_samples,
                 predict_fn,
-                sampling_method
+                sampling_method,
+                minkowski_norm
             )
         ret_exp = explanation.Explanation(domain_mapper,
                                           mode=self.mode,
@@ -382,15 +385,16 @@ class LimeTabularExplainer(object):
 
         return ret_exp
 
-    def _get_prerequisites_for_explaining(self, data_row, distance_metric, num_samples, predict_fn, sampling_method):
+    def _get_prerequisites_for_explaining(self, data_row, distance_metric, num_samples, predict_fn, sampling_method, minkowski_norm):
         """
         Method calculates prerequisites for explain_instance_with_data().
         """
-        data_row, distances, inverse, scaled_data = self._process_raw_data(
+        data_row, distances, inverse, scaled_data = self._generate_data(
             data_row,
             distance_metric,
             num_samples,
-            sampling_method)
+            sampling_method,
+            minkowski_norm)
 
         yss = predict_fn(inverse)
 
@@ -481,7 +485,7 @@ class LimeTabularExplainer(object):
                     discretized_instance[f])]
         return categorical_features, discretized_feature_names, feature_indexes, feature_names, values
 
-    def _process_raw_data(self, data_row, distance_metric, num_samples, sampling_method):
+    def _generate_data(self, data_row, distance_metric, num_samples, sampling_method, minkowski_norm):
         if sp.sparse.issparse(data_row) and not sp.sparse.isspmatrix_csr(data_row):
             # Preventative code: if sparse, convert to csr format if not in csr format already
             data_row = data_row.tocsr()
@@ -494,11 +498,19 @@ class LimeTabularExplainer(object):
                 scaled_data = scaled_data.tocsr()
         else:
             scaled_data = (data - self.scaler.mean_) / self.scaler.scale_
-        distances = sklearn.metrics.pairwise_distances(
-            scaled_data,
-            scaled_data[0].reshape(1, -1),
-            metric=distance_metric
-        ).ravel()
+        if distance_metric == "minkowski":
+            distances = sklearn.metrics.pairwise_distances(
+                scaled_data,
+                scaled_data[0].reshape(1, -1),
+                metric=distance_metric,
+                p=minkowski_norm
+            ).ravel()
+        else:
+            distances = sklearn.metrics.pairwise_distances(
+                scaled_data,
+                scaled_data[0].reshape(1, -1),
+                metric=distance_metric
+            ).ravel()
         return data_row, distances, inverse, scaled_data
 
     def __data_inverse(self,

@@ -109,7 +109,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                          num_samples=5000,
                          distance_metric='euclidean',
                          model_regressor=None,
-                         sampling_method='gaussian'):
+                         sampling_method='gaussian',
+                         minkowski_norm=None):
         """Generates explanations for a prediction.
 
         First, we generate neighborhood data by randomly perturbing features
@@ -139,6 +140,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 and 'sample_weight' as a parameter to model_regressor.fit()
             sampling_method: Method to sample synthetic data. Defaults to Gaussian
                 sampling. Can also use Latin Hypercube Sampling.
+            minkowski_norm: When minkowski metric is chosen for distance_metric, this is p-norm to apply for it.
 
         Returns:
             An Explanation object (see explanation.py) with the corresponding
@@ -150,7 +152,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 distance_metric,
                 num_samples,
                 predict_fn,
-                sampling_method
+                sampling_method,
+                minkowski_norm
             )
 
         new_explanation = self.__create_explanation(
@@ -164,16 +167,19 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                                           distance_metric,
                                           num_samples,
                                           predict_fn,
-                                          sampling_method):
+                                          sampling_method,
+                                          minkowski_norm):
         """
         Overridden.
         Method calculates prerequisites for explain_instance_with_data().
         """
-        data_row, distances, inversed_data, scaled_data = self._process_raw_data(
+        data_row, distances, inversed_data, scaled_data = self._generate_data(
             data_row,
             distance_metric,
             num_samples,
-            sampling_method)
+            sampling_method,
+            minkowski_norm
+        )
 
         yss = predict_fn(inversed_data)
 
@@ -282,6 +288,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             label_indices_to_explain = labels
 
         new_explanation.explained_labels_id = list(label_indices_to_explain)
+        new_explanation.training_data_distances = distances
 
         local_surrogates_ensemble = {}
         datasets_for_each_explainer = {}
@@ -319,7 +326,6 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             new_explanation.score = prediction_score_on_training_data
             new_explanation.local_pred = prediction_on_explained_instance
 
-        new_explanation.training_data_distances = distances
         (new_explanation.prediction_loss_on_training_data,
          new_explanation.squared_errors_matrix) = self.__evaluate_ensemble(
             local_surrogates_ensemble,
