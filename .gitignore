@@ -76,3 +76,6 @@ fabric.properties
 # Pycharm
 .idea
 venv/
+doc/notebooks/data/
+doc/notebooks/etc/tmp/
+/doc/mod/data/
