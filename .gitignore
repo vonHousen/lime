@@ -13,7 +13,9 @@
 .cache
 build/
 doc/notebooks/.ipynb_checkpoints/
-doc/notebooks/tmp/
+doc/mod/tmp/
+/doc/mod/data/
+
 
 # Created by https://www.gitignore.io/api/pycharm
 
