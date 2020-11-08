@@ -10,33 +10,54 @@ class DatasetRepository:
 
     def get_titanic_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/titanic/train.csv").set_index("PassengerId")
+
         data.drop(columns=["Name", "Ticket"], inplace=True)
-        data["cabin_level"] = data["Cabin"].str[0].fillna("N/A")
+        data["cabin_level"] = data["Cabin"].str[0]
         data.drop(columns=["Cabin"], inplace=True)
-        data["Embarked"] = data["Embarked"].fillna("N/A")
         data["Age"] = data["Age"].fillna(data["Age"].mean())
+
+        # categorical features handling
+        data["Sex"] = data["Sex"].map({
+            "female": 0,
+            "male": 1
+        })
+        data = pd.concat(
+            [
+                data.drop(columns=["Embarked"]),
+                pd.get_dummies(data["Embarked"].fillna("unknown"), prefix="embarked")
+            ],
+            axis=1
+        )
+        data = pd.concat(
+            [
+                data.drop(columns=["cabin_level"]),
+                pd.get_dummies(data["cabin_level"].fillna("unknown"), prefix="cabin_level")
+            ],
+            axis=1
+        )
 
         train_data, test_data = \
             train_test_split(data, test_size=0.1, stratify=data["Survived"])
         train_labels = train_data.pop("Survived")
         test_labels = test_data.pop("Survived")
 
-        return train_data, train_labels, test_data, test_labels
+        return Dataset("titanic", train_data, train_labels, test_data, test_labels)
 
     def get_fetal_health_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/fetal_health/fetal_health.csv")
-        data["fetal_health"] = data["fetal_health"].map({
-            1: "Normal",
-            2: "Suspect",
-            3: "Pathological"
-        })
+
+        # data["fetal_health"] = data["fetal_health"].map({
+        #     1: "Normal",
+        #     2: "Suspect",
+        #     3: "Pathological"
+        # })
 
         train_data, test_data = \
             train_test_split(data, test_size=0.2, stratify=data["fetal_health"])
         train_labels = train_data.pop("fetal_health")
         test_labels = test_data.pop("fetal_health")
 
-        return train_data, train_labels, test_data, test_labels
+        return Dataset("fetal health", train_data, train_labels, test_data, test_labels)
 
     def get_wines_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/wine_quality/winequality-red.csv")
@@ -46,7 +67,7 @@ class DatasetRepository:
         train_labels = train_data.pop("quality")
         test_labels = test_data.pop("quality")
 
-        return train_data, train_labels, test_data, test_labels
+        return Dataset("wines", train_data, train_labels, test_data, test_labels)
 
     def get_mushrooms_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/mushrooms/mushrooms.csv")
@@ -99,12 +120,26 @@ class DatasetRepository:
         for column, mapping in dict_str.items():
             data[column] = data[column].map(eval(mapping))
 
+        # categorical features handling
+        data["class"] = data["class"].map({
+            "edible": 0,
+            "poisonous": 1
+        })
+        for column in data.columns.tolist()[1:]:
+            data = pd.concat(
+                [
+                    data.drop(columns=[column]),
+                    pd.get_dummies(data[column].fillna("unknown"), prefix=column)
+                ],
+                axis=1
+            )
+
         train_data, test_data = \
             train_test_split(data, test_size=0.2, stratify=data["class"])
         train_labels = train_data.pop("class")
         test_labels = test_data.pop("class")
 
-        return train_data, train_labels, test_data, test_labels
+        return Dataset("mushrooms", train_data, train_labels, test_data, test_labels)
 
     def get_heart_disease_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/heart/heart.csv")
@@ -114,5 +149,25 @@ class DatasetRepository:
         train_labels = train_data.pop("target")
         test_labels = test_data.pop("target")
 
-        return train_data, train_labels, test_data, test_labels
+        return Dataset("heart disease", train_data, train_labels, test_data, test_labels)
+
+    def get_all_datasets(self):
+        dataset_getters = [
+            self.get_titanic_dataset,
+            self.get_fetal_health_dataset,
+            self.get_wines_dataset,
+            self.get_mushrooms_dataset,
+            self.get_heart_disease_dataset,
+        ]
+        for getter in dataset_getters:
+            yield getter()
+
+
+class Dataset:
+    def __init__(self, name, train_data, train_labels, test_data, test_labels):
+        self.name = name
+        self.train_data = train_data
+        self.train_labels = train_labels
+        self.test_data = test_data
+        self.test_labels = test_labels
 
