@@ -41,7 +41,8 @@ class DatasetRepository:
         train_labels = train_data.pop("Survived")
         test_labels = test_data.pop("Survived")
 
-        return Dataset("titanic", train_data, train_labels, test_data, test_labels)
+        return Dataset("titanic", train_data, train_labels, test_data,
+                       test_labels, [idx for idx in range(6, len(train_data.columns))] + [0, 1])
 
     def get_fetal_health_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/fetal_health/fetal_health.csv")
@@ -57,7 +58,7 @@ class DatasetRepository:
         train_labels = train_data.pop("fetal_health")
         test_labels = test_data.pop("fetal_health")
 
-        return Dataset("fetal health", train_data, train_labels, test_data, test_labels)
+        return Dataset("fetal health", train_data, train_labels, test_data, test_labels, None)
 
     def get_wines_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/wine_quality/winequality-red.csv")
@@ -67,7 +68,7 @@ class DatasetRepository:
         train_labels = train_data.pop("quality")
         test_labels = test_data.pop("quality")
 
-        return Dataset("wines", train_data, train_labels, test_data, test_labels)
+        return Dataset("wines", train_data, train_labels, test_data, test_labels, None)
 
     def get_mushrooms_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/mushrooms/mushrooms.csv")
@@ -139,7 +140,8 @@ class DatasetRepository:
         train_labels = train_data.pop("class")
         test_labels = test_data.pop("class")
 
-        return Dataset("mushrooms", train_data, train_labels, test_data, test_labels)
+        return Dataset("mushrooms", train_data, train_labels, test_data, test_labels,
+                       list(range(len(train_data.columns))))
 
     def get_heart_disease_dataset(self):
         data = pd.read_csv(f"{self.path_to_data_dir}/heart/heart.csv")
@@ -149,7 +151,7 @@ class DatasetRepository:
         train_labels = train_data.pop("target")
         test_labels = test_data.pop("target")
 
-        return Dataset("heart disease", train_data, train_labels, test_data, test_labels)
+        return Dataset("heart disease", train_data, train_labels, test_data, test_labels, None)
 
     def get_all_datasets(self):
         dataset_getters = [
@@ -164,10 +166,10 @@ class DatasetRepository:
 
 
 class Dataset:
-    def __init__(self, name, train_data, train_labels, test_data, test_labels):
+    def __init__(self, name, train_data, train_labels, test_data, test_labels, categorical_features):
         self.name = name
         self.train_data = train_data
         self.train_labels = train_labels
         self.test_data = test_data
         self.test_labels = test_labels
-
+        self.categorical_features = categorical_features
