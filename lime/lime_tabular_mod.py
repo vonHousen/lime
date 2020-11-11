@@ -226,7 +226,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                                     weights):
         """
         Evaluates single local surrogate on data used for its training (subset of features only),
-        using built-in score function. Method uses coefficient of determination R^2 of the prediction as loss function.
+        using built-in score function. Method uses coefficient of determination R^2 of the prediction as score function.
         """
         prediction_score_on_training_data = local_surrogate.score(
             training_data,
