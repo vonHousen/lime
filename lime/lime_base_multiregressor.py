@@ -1,15 +1,17 @@
 """
-Contains custom modification of lime_base - TODO
+Custom modification of lime_base - that uses regression tree as default regressor.
 """
 import numpy as np
-import scipy as sp
-from sklearn.linear_model import Ridge, lars_path
-from sklearn.utils import check_random_state
-from lime.lime_base import LimeBase
+
+from lime.lime_base_mod import LimeBaseMod
+from sklearn.tree import DecisionTreeRegressor
 
 
-class LimeBaseMod(LimeBase):
-    """Class for learning a local surrogate model from perturbed data"""
+class LimeBaseMultiRegressionTree(LimeBaseMod):
+    """
+    Class for learning a local surrogate model from perturbed data.
+    Custom modification - uses regression tree as default regressor.
+    """
     def __init__(self,
                  kernel_fn=None,
                  verbose=False,
@@ -29,6 +31,7 @@ class LimeBaseMod(LimeBase):
             verbose=verbose,
             random_state=random_state
         )
+        self.model_regressor = DecisionTreeRegressor(random_state=self.random_state)
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -74,6 +77,9 @@ class LimeBaseMod(LimeBase):
             local_pred is the prediction of the explanation model on the original instance
         """
 
+        if model_regressor is None:
+            model_regressor = self.model_regressor
+
         data_to_train_local_surrogate, local_surrogate, used_features, weights =\
             self._train_local_surrogate(
                 distances,
@@ -86,7 +92,7 @@ class LimeBaseMod(LimeBase):
 
         explanation = self._get_explanation(local_surrogate, used_features)
 
-        return (local_surrogate.intercept_,
+        return (None,   # this is just a placeholder for time being     # TODO implement proper explanation generation
                 explanation,
                 local_surrogate,
                 data_to_train_local_surrogate,
@@ -94,31 +100,11 @@ class LimeBaseMod(LimeBase):
 
     @staticmethod
     def _get_explanation(local_surrogate, used_features):
+        # this is just a placeholder for time being     # TODO implement proper explanation generation
         explanation = sorted(
-            zip(used_features, local_surrogate.coef_),
+            zip(used_features, np.zeros(shape=(len(used_features),), dtype="float")),
             key=lambda x: np.abs(x[1]),
             reverse=True)
+
         return explanation
 
-    def _train_local_surrogate(self, distances, feature_selection, label, model_regressor, neighborhood_data,
-                               neighborhood_labels, num_features):
-        weights = self.kernel_fn(distances)
-        labels_column = neighborhood_labels[:, label]
-        used_features = self.feature_selection(
-            neighborhood_data,
-            labels_column,
-            weights,
-            num_features,
-            feature_selection)
-        data_to_train_local_surrogate = neighborhood_data[:, used_features]
-        if model_regressor is None:
-            model_regressor = Ridge(
-                alpha=1,
-                fit_intercept=True,
-                random_state=self.random_state)
-        local_surrogate = model_regressor
-        local_surrogate.fit(
-            data_to_train_local_surrogate,
-            labels_column,
-            sample_weight=weights)
-        return data_to_train_local_surrogate, local_surrogate, used_features, weights

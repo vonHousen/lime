@@ -34,7 +34,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                  discretizer='quartile',
                  sample_around_instance=False,
                  random_state=None,
-                 training_data_stats=None):
+                 training_data_stats=None,
+                 custom_lime_base=None):
         """Init function.
 
         Args:
@@ -79,7 +80,11 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 if discretize_continuous is True. Must have the following keys:
                 means", "mins", "maxs", "stds", "feature_values",
                 "feature_frequencies"
+            custom_lime_base: custom lime_base object, that creates local surrogate model.
+                If None, default one (LimeBaseMod) will be used.
         """
+        if custom_lime_base is None:
+            custom_lime_base = lime_base_mod.LimeBaseMod()
         super().__init__(
             training_data,
             "classification",
@@ -97,7 +102,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=lime_base_mod.LimeBaseMod()
+            custom_lime_base=custom_lime_base
         )
 
     def explain_instance(self,

@@ -187,7 +187,7 @@ class LimeTabularExplainer(object):
                 means", "mins", "maxs", "stds", "feature_values",
                 "feature_frequencies"
             custom_lime_base: custom lime_base object, that creates local surrogate model.
-                If None, default one (Ridge Regression) will be used.
+                If None, default one (LimeBase) will be used.
         """
         self.random_state = check_random_state(random_state)
         self.mode = mode
