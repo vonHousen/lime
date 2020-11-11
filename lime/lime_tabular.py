@@ -140,7 +140,7 @@ class LimeTabularExplainer(object):
                  sample_around_instance=False,
                  random_state=None,
                  training_data_stats=None,
-                 custom_lime_base_constructor=lime_base.LimeBase):
+                 custom_lime_base=None):
         """Init function.
 
         Args:
@@ -186,6 +186,8 @@ class LimeTabularExplainer(object):
                 if discretize_continuous is True. Must have the following keys:
                 means", "mins", "maxs", "stds", "feature_values",
                 "feature_frequencies"
+            custom_lime_base: custom lime_base object, that creates local surrogate model.
+                If None, default one (Ridge Regression) will be used.
         """
         self.random_state = check_random_state(random_state)
         self.mode = mode
@@ -254,7 +256,15 @@ class LimeTabularExplainer(object):
         kernel_fn = partial(kernel, kernel_width=kernel_width)
 
         self.feature_selection = feature_selection
-        self.base = custom_lime_base_constructor(kernel_fn, verbose, self.random_state)
+
+        if custom_lime_base is None:
+            self.base = lime_base.LimeBase(kernel_fn, verbose, self.random_state)
+        else:
+            custom_lime_base.kernel_fn = kernel_fn
+            custom_lime_base.verbose = verbose
+            custom_lime_base.random_state = self.random_state
+            self.base = custom_lime_base
+
         self.class_names = class_names
 
         # Though set has no role to play if training data stats are provided

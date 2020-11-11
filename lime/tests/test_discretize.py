@@ -19,7 +19,7 @@ class TestDiscretize(TestCase):
 
     def check_random_state_for_discretizer_class(self, DiscretizerClass):
         # ----------------------------------------------------------------------
-        # -----------Check if the same random_state produces the same-----------
+        # -----------Check if the same _random_state produces the same-----------
         # -------------results for different discretizer instances.-------------
         # ----------------------------------------------------------------------
         discretizer = DiscretizerClass(self.x, [], self.feature_names, self.y,
@@ -43,7 +43,7 @@ class TestDiscretize(TestCase):
         self.assertEqual((x_1 == x_2).sum(), x_1.shape[0] * x_1.shape[1])
 
         # ----------------------------------------------------------------------
-        # ---------Check if two different random_state values produces----------
+        # ---------Check if two different _random_state values produces----------
         # -------different results for different discretizers instances.--------
         # ----------------------------------------------------------------------
         discretizer = DiscretizerClass(self.x, [], self.feature_names, self.y,

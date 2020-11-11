@@ -25,7 +25,15 @@ class LimeBase(object):
         """
         self.kernel_fn = kernel_fn
         self.verbose = verbose
-        self.random_state = check_random_state(random_state)
+        self._random_state = check_random_state(random_state)
+
+    @property
+    def random_state(self):
+        return self._random_state
+
+    @random_state.setter
+    def random_state(self, new_value):
+        self._random_state = check_random_state(new_value)
 
     @staticmethod
     def generate_lars_path(weighted_data, weighted_labels):
@@ -48,7 +56,7 @@ class LimeBase(object):
 
     def forward_selection(self, data, labels, weights, num_features):
         """Iteratively adds features to the model"""
-        clf = Ridge(alpha=0, fit_intercept=True, random_state=self.random_state)
+        clf = Ridge(alpha=0, fit_intercept=True, random_state=self._random_state)
         used_features = []
         for _ in range(min(num_features, data.shape[1])):
             max_ = -100000000
@@ -76,7 +84,7 @@ class LimeBase(object):
             return self.forward_selection(data, labels, weights, num_features)
         elif method == 'highest_weights':
             clf = Ridge(alpha=0.01, fit_intercept=True,
-                        random_state=self.random_state)
+                        random_state=self._random_state)
             clf.fit(data, labels, sample_weight=weights)
 
             coef = clf.coef_
@@ -187,7 +195,7 @@ class LimeBase(object):
                                                feature_selection)
         if model_regressor is None:
             model_regressor = Ridge(alpha=1, fit_intercept=True,
-                                    random_state=self.random_state)
+                                    random_state=self._random_state)
         easy_model = model_regressor
         easy_model.fit(neighborhood_data[:, used_features],
                        labels_column, sample_weight=weights)

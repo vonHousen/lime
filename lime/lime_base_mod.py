@@ -11,7 +11,7 @@ from lime.lime_base import LimeBase
 class LimeBaseMod(LimeBase):
     """Class for learning a local surrogate model from perturbed data"""
     def __init__(self,
-                 kernel_fn,
+                 kernel_fn=None,
                  verbose=False,
                  random_state=None):
         """Init function

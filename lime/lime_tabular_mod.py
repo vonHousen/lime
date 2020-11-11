@@ -97,7 +97,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base_constructor=lime_base_mod.LimeBaseMod
+            custom_lime_base=lime_base_mod.LimeBaseMod()
         )
 
     def explain_instance(self,
