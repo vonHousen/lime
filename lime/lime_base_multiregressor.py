@@ -92,7 +92,7 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
 
         explanation = self._get_explanation(local_surrogate, used_features)
 
-        return (None,   # this is just a placeholder for time being     # TODO implement proper explanation generation
+        return (None,   # deprecated field
                 explanation,
                 local_surrogate,
                 data_to_train_local_surrogate,
@@ -100,9 +100,9 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
 
     @staticmethod
     def _get_explanation(local_surrogate, used_features):
-        # this is just a placeholder for time being     # TODO implement proper explanation generation
+
         explanation = sorted(
-            zip(used_features, np.zeros(shape=(len(used_features),), dtype="float")),
+            zip(used_features, local_surrogate.feature_importances_[used_features]),
             key=lambda x: np.abs(x[1]),
             reverse=True)
 
