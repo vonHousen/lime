@@ -102,7 +102,7 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
     def _get_explanation(local_surrogate, used_features):
 
         explanation = sorted(
-            zip(used_features, local_surrogate.feature_importances_[used_features]),
+            zip(used_features, local_surrogate.feature_importances_),
             key=lambda x: np.abs(x[1]),
             reverse=True)
 
