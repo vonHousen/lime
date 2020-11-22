@@ -1,7 +1,7 @@
 
-from scipy.special import softmax
 from lime.explanation import Explanation
 from sklearn import metrics
+import lime.tools as lime_utils
 
 import numpy as np
 import pandas as pd
@@ -72,7 +72,7 @@ class ExplanationMod(Explanation):
         (most important) features.
 
         Args:
-            normalized - if True, predictions are normalized using softmax function.
+            normalized - if True, predictions are normalized using lime.utils.custom_normalize function.
             order - order of returned labels' probabilities - see _get_labels_ordered().
 
         Returns:
@@ -82,7 +82,7 @@ class ExplanationMod(Explanation):
         for label in self._get_labels_ordered(order):
             prediction_probabilities.append(self.probabilities_for_surrogate_model[label])
         if normalized:
-            return list(softmax(prediction_probabilities))
+            return list(lime_utils.custom_normalize(prediction_probabilities))
         else:
             return prediction_probabilities
 

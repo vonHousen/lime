@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 from . import explanation_mod, lime_base_mod
 from lime.lime_tabular import LimeTabularExplainer, TableDomainMapper
-from scipy.special import softmax
+import lime.tools as lime_utils
 from sklearn import metrics
 
 
@@ -161,7 +161,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 minkowski_norm
             )
 
-        new_explanation = self.__create_explanation(
+        new_explanation = self._create_explanation(
             distances, domain_mapper, labels, model_regressor, num_features, scaled_data, top_labels, yss
         )
 
@@ -225,10 +225,10 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss
 
     @staticmethod
-    def __evaluate_single_explainer(local_surrogate,
-                                    training_data,
-                                    labels,
-                                    weights):
+    def _evaluate_single_explainer(local_surrogate,
+                                   training_data,
+                                   labels,
+                                   weights):
         """
         Evaluates single local surrogate on data used for its training (subset of features only),
         using built-in score function. Method uses coefficient of determination R^2 of the prediction as score function.
@@ -246,36 +246,36 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         return prediction_on_explained_instance, prediction_score_on_training_data, prediction_loss_on_training_data
 
     @staticmethod
-    def __evaluate_ensemble(local_surrogates_ensemble,
-                            data_subset_for_each_explainer,
-                            training_data,
-                            expected_probabilities):
+    def _evaluate_ensemble(local_surrogates_ensemble,
+                           data_subset_for_each_explainer,
+                           training_data,
+                           expected_probabilities):
         """
-        Evaluates ensemble of local surrogates, by comparing softmax of their probabilities and expected ones,
+        Evaluates ensemble of local surrogates, by comparing their normalized probabilities and expected ones,
         without weighing them. Note that each explainer might use different subset of data (different features).
-        Loss function is MSE.
+        Loss function is MSE, normalization function: lime.utils.custom_normalize.
         """
         predicted_probabilities = np.zeros((training_data.shape[0], expected_probabilities.shape[1]), dtype="float")
         for label in range(expected_probabilities.shape[1]):
             local_surrogate = local_surrogates_ensemble[label]
             training_data_for_local_surrogate = data_subset_for_each_explainer[label]
             predicted_probabilities[:, label] = local_surrogate.predict(training_data_for_local_surrogate)
-        predicted_probabilities_softmax = softmax(predicted_probabilities, axis=1)
+        predicted_probabilities_normalized = lime_utils.custom_normalize(predicted_probabilities, axis=1)
         prediction_loss_on_training_data = metrics.mean_squared_error(
-            y_true=expected_probabilities, y_pred=predicted_probabilities_softmax)
-        squared_errors_matrix = (expected_probabilities - predicted_probabilities_softmax)**2
+            y_true=expected_probabilities, y_pred=predicted_probabilities_normalized)
+        squared_errors_matrix = (expected_probabilities - predicted_probabilities_normalized)**2
 
         return prediction_loss_on_training_data, squared_errors_matrix
 
-    def __create_explanation(self,
-                             distances,
-                             domain_mapper,
-                             labels,
-                             model_regressor,
-                             num_features,
-                             scaled_data,
-                             top_labels,
-                             yss):
+    def _create_explanation(self,
+                            distances,
+                            domain_mapper,
+                            labels,
+                            model_regressor,
+                            num_features,
+                            scaled_data,
+                            top_labels,
+                            yss):
         """
         Factory method for creating and evaluating new explanation.
         """
@@ -315,7 +315,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             labels_column = yss[:, label_idx]
             (prediction_on_explained_instance,
              prediction_score_on_training_data,
-             prediction_loss_on_training_data) = self.__evaluate_single_explainer(
+             prediction_loss_on_training_data) = self._evaluate_single_explainer(
                 local_surrogate,
                 data_used_to_train_local_surrogate,
                 labels_column,
@@ -332,7 +332,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             new_explanation.local_pred = prediction_on_explained_instance
 
         (new_explanation.prediction_loss_on_training_data,
-         new_explanation.squared_errors_matrix) = self.__evaluate_ensemble(
+         new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
             local_surrogates_ensemble,
             data_subset_for_each_explainer=datasets_for_each_explainer,
             training_data=scaled_data,

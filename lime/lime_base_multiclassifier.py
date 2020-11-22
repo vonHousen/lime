@@ -1,16 +1,16 @@
 """
-Custom modification of lime_base - that uses regression tree as default regressor.
+Custom modification of lime_base - that uses decision tree as local surrogate.
 """
 import numpy as np
 
 from lime.lime_base_mod import LimeBaseMod
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree import DecisionTreeClassifier
 
 
-class LimeBaseMultiRegressionTree(LimeBaseMod):
+class LimeBaseMultiDecisionTree(LimeBaseMod):
     """
     Class for learning a local surrogate model from perturbed data.
-    Custom modification - uses regression tree as default regressor.
+    Custom modification - uses decision tree as local surrogate.
     """
     def __init__(self,
                  kernel_fn=None,
@@ -31,7 +31,7 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             verbose=verbose,
             random_state=random_state
         )
-        self.model_regressor = DecisionTreeRegressor(random_state=self.random_state)
+        self.model_classifier = DecisionTreeClassifier(random_state=self.random_state)
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -74,14 +74,12 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             local_pred is the prediction of the explanation model on the original instance
         """
 
-        model_regressor = self.model_regressor
-
         data_to_train_local_surrogate, local_surrogate, used_features, weights =\
             self._train_local_surrogate(
                 distances,
                 feature_selection,
                 label,
-                model_regressor,
+                self.model_classifier,
                 neighborhood_data,
                 neighborhood_labels,
                 num_features)
@@ -104,3 +102,26 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
 
         return explanation
 
+    def _train_local_surrogate(self, distances, feature_selection, label, local_surrogate, neighborhood_data,
+                               neighborhood_labels, num_features):
+        weights = self.kernel_fn(distances)
+
+        # predicted labels are the labels with the greatest probability - simple majority is not required though
+        predicted_labels = np.argmax(neighborhood_labels, axis=1)
+        prediction_results = np.zeros_like(neighborhood_labels, dtype="int32")
+        prediction_results[np.arange(neighborhood_labels.shape[0]), predicted_labels] = 1
+        classification_labels_column = prediction_results[:, label]
+        regression_labels_column = neighborhood_labels[:, label]
+
+        used_features = self.feature_selection(
+            neighborhood_data,
+            regression_labels_column,
+            weights,
+            num_features,
+            feature_selection)
+        data_to_train_local_surrogate = neighborhood_data[:, used_features]
+        local_surrogate.fit(
+            data_to_train_local_surrogate,
+            classification_labels_column,
+            sample_weight=weights)
+        return data_to_train_local_surrogate, local_surrogate, used_features, weights
