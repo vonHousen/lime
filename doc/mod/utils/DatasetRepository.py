@@ -8,7 +8,7 @@ class DatasetRepository:
     def __init__(self, path_to_data_dir):
         self.path_to_data_dir = path_to_data_dir
 
-    def get_titanic_dataset(self):
+    def get_titanic_dataset(self, random_state=None):
         data = pd.read_csv(f"{self.path_to_data_dir}/titanic/train.csv").set_index("PassengerId")
 
         data.drop(columns=["Name", "Ticket"], inplace=True)
@@ -37,14 +37,14 @@ class DatasetRepository:
         )
 
         train_data, test_data = \
-            train_test_split(data, test_size=0.1, stratify=data["Survived"])
+            train_test_split(data, test_size=0.1, stratify=data["Survived"], random_state=random_state)
         train_labels = train_data.pop("Survived")
         test_labels = test_data.pop("Survived")
 
         return Dataset("titanic", train_data, train_labels, test_data,
                        test_labels, [idx for idx in range(6, len(train_data.columns))] + [0, 1])
 
-    def get_fetal_health_dataset(self):
+    def get_fetal_health_dataset(self, random_state=None):
         data = pd.read_csv(f"{self.path_to_data_dir}/fetal_health/fetal_health.csv")
 
         # data["fetal_health"] = data["fetal_health"].map({
@@ -54,23 +54,23 @@ class DatasetRepository:
         # })
 
         train_data, test_data = \
-            train_test_split(data, test_size=0.2, stratify=data["fetal_health"])
+            train_test_split(data, test_size=0.2, stratify=data["fetal_health"], random_state=random_state)
         train_labels = train_data.pop("fetal_health")
         test_labels = test_data.pop("fetal_health")
 
         return Dataset("fetal health", train_data, train_labels, test_data, test_labels, None)
 
-    def get_wines_dataset(self):
+    def get_wines_dataset(self, random_state=None):
         data = pd.read_csv(f"{self.path_to_data_dir}/wine_quality/winequality-red.csv")
 
         train_data, test_data = \
-            train_test_split(data, test_size=0.1, stratify=data["quality"])
+            train_test_split(data, test_size=0.1, stratify=data["quality"], random_state=random_state)
         train_labels = train_data.pop("quality")
         test_labels = test_data.pop("quality")
 
         return Dataset("wines", train_data, train_labels, test_data, test_labels, None)
 
-    def get_mushrooms_dataset(self):
+    def get_mushrooms_dataset(self, random_state=None):
         data = pd.read_csv(f"{self.path_to_data_dir}/mushrooms/mushrooms.csv")
 
         legend = """
@@ -136,24 +136,24 @@ class DatasetRepository:
             )
 
         train_data, test_data = \
-            train_test_split(data, test_size=0.2, stratify=data["class"])
+            train_test_split(data, test_size=0.2, stratify=data["class"], random_state=random_state)
         train_labels = train_data.pop("class")
         test_labels = test_data.pop("class")
 
         return Dataset("mushrooms", train_data, train_labels, test_data, test_labels,
                        list(range(len(train_data.columns))))
 
-    def get_heart_disease_dataset(self):
+    def get_heart_disease_dataset(self, random_state=None):
         data = pd.read_csv(f"{self.path_to_data_dir}/heart/heart.csv")
 
         train_data, test_data = \
-            train_test_split(data, test_size=0.1, stratify=data["target"])
+            train_test_split(data, test_size=0.1, stratify=data["target"], random_state=random_state)
         train_labels = train_data.pop("target")
         test_labels = test_data.pop("target")
 
         return Dataset("heart disease", train_data, train_labels, test_data, test_labels, None)
 
-    def get_all_datasets(self):
+    def get_all_datasets(self, random_state=None):
         dataset_getters = [
             self.get_titanic_dataset,
             self.get_fetal_health_dataset,
@@ -162,7 +162,7 @@ class DatasetRepository:
             self.get_heart_disease_dataset,
         ]
         for getter in dataset_getters:
-            yield getter()
+            yield getter(random_state)
 
 
 class Dataset:
