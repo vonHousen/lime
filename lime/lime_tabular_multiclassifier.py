@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 
 import lime.explanation_mod as explanation_mod
+import lime.tools as lime_utils
 from lime.lime_tabular_mod import LimeTabularExplainerMod
 from lime.lime_base_multiclassifier import LimeBaseMultiDecisionTree
 from sklearn import metrics
@@ -95,83 +96,13 @@ class LTEMultiDecisionTree(LimeTabularExplainerMod):
             custom_lime_base=LimeBaseMultiDecisionTree()
         )
 
-    def _create_explanation(self,
-                            distances,
-                            domain_mapper,
-                            labels,
-                            model_regressor,
-                            num_features,
-                            scaled_data,
-                            top_labels,
-                            yss):
-        """
-        Factory method for creating and evaluating new explanation.
-        """
-        new_explanation = explanation_mod.ExplanationMod(
-            domain_mapper,
-            class_names=self.class_names)
-
-        new_explanation.predict_proba = yss[0]
-        if top_labels:
-            label_indices_to_explain = np.argsort(yss[0])[-top_labels:]
-            # legacy fields
-            new_explanation.top_labels = list(label_indices_to_explain)
-            new_explanation.top_labels.reverse()
-        else:
-            label_indices_to_explain = labels
-
-        new_explanation.explained_labels_id = list(label_indices_to_explain)
-        new_explanation.training_data_distances = distances
-
-        local_surrogates_ensemble = {}
-        datasets_for_each_explainer = {}
-
-        for label_idx in label_indices_to_explain:
-            (intercept, feature_with_coef, local_surrogate, data_used_to_train_local_surrogate, examples_weights) =\
-                self.base.explain_instance_with_data(
-                    scaled_data,
-                    yss,
-                    distances,
-                    label_idx,
-                    num_features,
-                    model_regressor=model_regressor,
-                    feature_selection=self.feature_selection)
-
-            local_surrogates_ensemble[label_idx] = local_surrogate
-            datasets_for_each_explainer[label_idx] = data_used_to_train_local_surrogate
-
-            # predicted labels are the labels with the greatest probability - simple majority is not required though
-            predicted_labels = np.argmax(yss, axis=1)
-            prediction_results = np.zeros_like(yss, dtype="int32")
-            prediction_results[:, predicted_labels] = 1
-            classification_labels_column = prediction_results[:, label_idx]
-
-            (prediction_on_explained_instance,
-             prediction_score_on_training_data,
-             prediction_loss_on_training_data) = self._evaluate_single_explainer(
-                local_surrogate,
-                data_used_to_train_local_surrogate,
-                classification_labels_column,
-                examples_weights)
-
-            new_explanation.intercept[label_idx] = intercept
-            new_explanation.local_exp[label_idx] = feature_with_coef
-            new_explanation.probabilities_for_surrogate_model[label_idx] = prediction_on_explained_instance
-            new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
-            new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
-
-            # deprecated fields
-            new_explanation.score = prediction_score_on_training_data
-            new_explanation.local_pred = prediction_on_explained_instance
-
-        (new_explanation.prediction_loss_on_training_data,
-         new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
-            local_surrogates_ensemble,
-            data_subset_for_each_explainer=datasets_for_each_explainer,
-            training_data=scaled_data,
-            expected_probabilities=prediction_results)
-
-        return new_explanation
+    @staticmethod
+    def _get_prediction_results(yss):
+        # predicted labels are the labels with the greatest probability - simple majority is not required
+        predicted_labels = np.argmax(yss, axis=1)
+        prediction_results = np.zeros_like(yss, dtype="int32")
+        prediction_results[np.arange(prediction_results.shape[0]), predicted_labels] = 1
+        return prediction_results
 
     @staticmethod
     def _evaluate_single_explainer(local_surrogate,
@@ -182,7 +113,7 @@ class LTEMultiDecisionTree(LimeTabularExplainerMod):
         Evaluates single local surrogate on data used for its training (subset of features only),
         using built-in score function. Because local surrogate is a classifier, prediction score is not calculated.
         """
-        prediction_score_on_training_data = np.zeros_like(labels, dtype="float32")
+        prediction_score_on_training_data = 1.0
         predictions_on_training_data = local_surrogate.predict(training_data)
         prediction_loss_on_training_data = metrics.mean_squared_error(
             y_true=labels, y_pred=predictions_on_training_data
@@ -190,4 +121,3 @@ class LTEMultiDecisionTree(LimeTabularExplainerMod):
         prediction_on_explained_instance = local_surrogate.predict(
             training_data[0, :].reshape(1, -1))[0]
         return prediction_on_explained_instance, prediction_score_on_training_data, prediction_loss_on_training_data
-

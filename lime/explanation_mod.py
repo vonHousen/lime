@@ -29,7 +29,8 @@ class ExplanationMod(Explanation):
             random_state=random_state
         )
         self.explained_labels_id = None
-        self.probabilities_for_surrogate_model = {}
+        self.prediction_for_explained_model = None
+        self.prediction_for_surrogate_model = {}
         self.scores_on_generated_data = {}
         self.losses_on_generated_data = {}
         self.prediction_loss_on_training_data = None
@@ -61,7 +62,7 @@ class ExplanationMod(Explanation):
         Returns:
             list of predicted by explained model probabilities for each label.
         """
-        return list(self.predict_proba)
+        return list(self.prediction_for_explained_model)
 
     def get_prediction_for_surrogate_model(self,
                                            normalized=False,
@@ -80,7 +81,7 @@ class ExplanationMod(Explanation):
         """
         prediction_probabilities = []
         for label in self._get_labels_ordered(order):
-            prediction_probabilities.append(self.probabilities_for_surrogate_model[label])
+            prediction_probabilities.append(self.prediction_for_surrogate_model[label])
         if normalized:
             return list(lime_utils.custom_normalize(prediction_probabilities))
         else:

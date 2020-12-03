@@ -247,6 +247,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
 
     @staticmethod
     def _evaluate_ensemble(local_surrogates_ensemble,
+                           label_indices_to_explain,
                            data_subset_for_each_explainer,
                            training_data,
                            expected_probabilities):
@@ -256,10 +257,10 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         Loss function is MSE, normalization function: lime.utils.custom_normalize.
         """
         predicted_probabilities = np.zeros((training_data.shape[0], expected_probabilities.shape[1]), dtype="float")
-        for label in range(expected_probabilities.shape[1]):
-            local_surrogate = local_surrogates_ensemble[label]
-            training_data_for_local_surrogate = data_subset_for_each_explainer[label]
-            predicted_probabilities[:, label] = local_surrogate.predict(training_data_for_local_surrogate)
+        for idx, label_idx in enumerate(label_indices_to_explain):
+            local_surrogate = local_surrogates_ensemble[label_idx]
+            training_data_for_local_surrogate = data_subset_for_each_explainer[label_idx]
+            predicted_probabilities[:, idx] = local_surrogate.predict(training_data_for_local_surrogate)
         predicted_probabilities_normalized = lime_utils.custom_normalize(predicted_probabilities, axis=1)
         prediction_loss_on_training_data = metrics.mean_squared_error(
             y_true=expected_probabilities, y_pred=predicted_probabilities_normalized)
@@ -285,15 +286,19 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
 
         new_explanation.predict_proba = yss[0]
         if top_labels:
-            label_indices_to_explain = np.argsort(yss[0])[-top_labels:]
             # legacy fields
-            new_explanation.top_labels = list(label_indices_to_explain)
+            sorted_top_labels = list(np.argsort(yss[0])[-top_labels:])
+            new_explanation.top_labels = list(sorted_top_labels)
             new_explanation.top_labels.reverse()
+            label_indices_to_explain = sorted(sorted_top_labels)
         else:
-            label_indices_to_explain = labels
+            label_indices_to_explain = list(range(yss.shape[1]))
+
+        prediction_results = self._get_prediction_results(yss)
 
         new_explanation.explained_labels_id = list(label_indices_to_explain)
         new_explanation.training_data_distances = distances
+        new_explanation.prediction_for_explained_model = prediction_results[0, :]
 
         local_surrogates_ensemble = {}
         datasets_for_each_explainer = {}
@@ -312,7 +317,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             local_surrogates_ensemble[label_idx] = local_surrogate
             datasets_for_each_explainer[label_idx] = data_used_to_train_local_surrogate
 
-            labels_column = yss[:, label_idx]
+            labels_column = prediction_results[:, label_idx]
+
             (prediction_on_explained_instance,
              prediction_score_on_training_data,
              prediction_loss_on_training_data) = self._evaluate_single_explainer(
@@ -323,21 +329,25 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
 
             new_explanation.intercept[label_idx] = intercept
             new_explanation.local_exp[label_idx] = feature_with_coef
-            new_explanation.probabilities_for_surrogate_model[label_idx] = prediction_on_explained_instance
+            new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance
             new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
             new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
 
-            # TODO deprecated fields
+            # deprecated fields
             new_explanation.score = prediction_score_on_training_data
             new_explanation.local_pred = prediction_on_explained_instance
 
-        (new_explanation.prediction_loss_on_training_data,
-         new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
-            local_surrogates_ensemble,
-            data_subset_for_each_explainer=datasets_for_each_explainer,
-            training_data=scaled_data,
-            expected_probabilities=yss)
+        if top_labels == yss.shape[1]:
+            (new_explanation.prediction_loss_on_training_data,
+             new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
+                local_surrogates_ensemble,
+                label_indices_to_explain,
+                data_subset_for_each_explainer=datasets_for_each_explainer,
+                training_data=scaled_data,
+                expected_probabilities=prediction_results)
 
         return new_explanation
 
-
+    @staticmethod
+    def _get_prediction_results(yss):
+        return yss

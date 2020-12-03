@@ -31,7 +31,6 @@ class LimeBaseMultiDecisionTree(LimeBaseMod):
             verbose=verbose,
             random_state=random_state
         )
-        self.model_classifier = DecisionTreeClassifier(random_state=self.random_state)
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -79,7 +78,7 @@ class LimeBaseMultiDecisionTree(LimeBaseMod):
                 distances,
                 feature_selection,
                 label,
-                self.model_classifier,
+                DecisionTreeClassifier(random_state=self.random_state),
                 neighborhood_data,
                 neighborhood_labels,
                 num_features)
@@ -106,10 +105,10 @@ class LimeBaseMultiDecisionTree(LimeBaseMod):
                                neighborhood_labels, num_features):
         weights = self.kernel_fn(distances)
 
-        # predicted labels are the labels with the greatest probability - simple majority is not required though
+        # predicted labels are the labels with the greatest probability - simple majority is not required
         predicted_labels = np.argmax(neighborhood_labels, axis=1)
         prediction_results = np.zeros_like(neighborhood_labels, dtype="int32")
-        prediction_results[np.arange(neighborhood_labels.shape[0]), predicted_labels] = 1
+        prediction_results[np.arange(prediction_results.shape[0]), predicted_labels] = 1
         classification_labels_column = prediction_results[:, label]
         regression_labels_column = neighborhood_labels[:, label]
 

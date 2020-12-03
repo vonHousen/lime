@@ -31,7 +31,6 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             verbose=verbose,
             random_state=random_state
         )
-        self.model_regressor = DecisionTreeRegressor(random_state=self.random_state)
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -74,14 +73,12 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             local_pred is the prediction of the explanation model on the original instance
         """
 
-        model_regressor = self.model_regressor
-
         data_to_train_local_surrogate, local_surrogate, used_features, weights =\
             self._train_local_surrogate(
                 distances,
                 feature_selection,
                 label,
-                model_regressor,
+                DecisionTreeRegressor(random_state=self.random_state),
                 neighborhood_data,
                 neighborhood_labels,
                 num_features)
