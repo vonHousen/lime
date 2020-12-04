@@ -184,9 +184,18 @@ class ExplanationMod(Explanation):
             training_data["distance_quantile"] = pd.qcut(
                 training_data["distance"],
                 q=quantiles,
-                labels=[bin_id for bin_id in range(1, quantiles + 1)])
+                labels=False,
+                duplicates="drop")
             training_data = training_data[["squared_error", "distance_quantile"]]\
                 .groupby("distance_quantile").mean()
+            missing_rows = len(training_data.index) - quantiles
+            if missing_rows > 0:
+                first_new_row = len(training_data.index)
+                training_data = training_data.append(
+                    pd.concat([
+                        training_data,
+                        pd.DataFrame(index=[i for i in range(first_new_row, first_new_row + missing_rows)])
+                    ]))
         else:
             training_data.set_index("distance", inplace=True)
 
