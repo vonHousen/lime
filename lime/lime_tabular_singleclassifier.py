@@ -7,6 +7,7 @@ import numpy as np
 import lime.explanation_mod as explanation_mod
 from lime.lime_tabular_mod import LimeTabularExplainerMod
 from lime.lime_base_singleclassifier import LimeBaseSingleDecisionTree
+from lime.tools import convert_decimal_output_to_binary
 from sklearn import metrics
 
 
@@ -111,21 +112,8 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             domain_mapper,
             class_names=self.class_names)
 
-        new_explanation.predict_proba = yss[0]
-        if top_labels:
-            # legacy fields
-            sorted_top_labels = list(np.argsort(yss[0])[-top_labels:])
-            new_explanation.top_labels = list(sorted_top_labels)
-            new_explanation.top_labels.reverse()
-            label_indices_to_explain = sorted(sorted_top_labels)
-        else:
-            label_indices_to_explain = list(range(yss.shape[1]))
-
-        prediction_results = self._get_prediction_results(yss)
-
-        new_explanation.explained_labels_id = list(label_indices_to_explain)
-        new_explanation.training_data_distances = distances
-        new_explanation.prediction_for_explained_model = prediction_results[0, :]
+        label_indices_to_explain, prediction_results = \
+            self._prepare_explanation(distances, new_explanation, top_labels, yss)
 
         (_, feature_with_coef, local_surrogate, data_used_to_train_local_surrogate, examples_weights) = \
             self.base.explain_instance_with_data(
@@ -138,26 +126,22 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
 
         (prediction_on_explained_instance,
          prediction_score_on_training_data,
-         prediction_loss_on_training_data) = self._evaluate_explainer(
+         prediction_loss_on_training_data,
+         squared_errors_matrix) = self._evaluate_explainer(
             local_surrogate,
             data_used_to_train_local_surrogate,
             prediction_results)
 
-        for label_idx in label_indices_to_explain:
+        for i, label_idx in enumerate(label_indices_to_explain):
 
             new_explanation.local_exp[label_idx] = feature_with_coef
-            new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance
+            new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance[i]
             new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
             new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
 
-        # TODO to be changed
         if top_labels == yss.shape[1]:
-            (new_explanation.prediction_loss_on_training_data,
-             new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
-                local_surrogates_ensemble,
-                data_subset_for_each_explainer=datasets_for_each_explainer,
-                training_data=scaled_data,
-                expected_probabilities=prediction_results)
+            new_explanation.prediction_loss_on_training_data = prediction_loss_on_training_data
+            new_explanation.squared_errors_matrix = squared_errors_matrix
 
         return new_explanation
 
@@ -170,13 +154,18 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         using built-in score function. Because local surrogate is a classifier, prediction score is not calculated.
         """
         prediction_score_on_training_data = 0.0
-        predictions_on_training_data = local_surrogate.predict(training_data)
+        predictions_on_training_data = convert_decimal_output_to_binary(
+            local_surrogate.predict(training_data), classes_count=labels.shape[1])
+        squared_errors_matrix = (labels - predictions_on_training_data)**2
         prediction_loss_on_training_data = metrics.mean_squared_error(
             y_true=labels, y_pred=predictions_on_training_data
         )
-        prediction_on_explained_instance = local_surrogate.predict(
-            training_data[0, :].reshape(1, -1))[0]
-        return prediction_on_explained_instance, prediction_score_on_training_data, prediction_loss_on_training_data
+        prediction_on_explained_instance = predictions_on_training_data[0, :]
+
+        return prediction_on_explained_instance, \
+               prediction_score_on_training_data, \
+               prediction_loss_on_training_data, \
+               squared_errors_matrix
 
     @staticmethod
     def _get_prediction_results(yss):
