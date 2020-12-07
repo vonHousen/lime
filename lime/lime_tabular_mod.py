@@ -284,21 +284,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             domain_mapper,
             class_names=self.class_names)
 
-        new_explanation.predict_proba = yss[0]
-        if top_labels:
-            # legacy fields
-            sorted_top_labels = list(np.argsort(yss[0])[-top_labels:])
-            new_explanation.top_labels = list(sorted_top_labels)
-            new_explanation.top_labels.reverse()
-            label_indices_to_explain = sorted(sorted_top_labels)
-        else:
-            label_indices_to_explain = list(range(yss.shape[1]))
-
-        prediction_results = self._get_prediction_results(yss)
-
-        new_explanation.explained_labels_id = list(label_indices_to_explain)
-        new_explanation.training_data_distances = distances
-        new_explanation.prediction_for_explained_model = prediction_results[0, :]
+        label_indices_to_explain, prediction_results = \
+            self._prepare_explanation(distances, new_explanation, top_labels, yss)
 
         local_surrogates_ensemble = {}
         datasets_for_each_explainer = {}
@@ -347,6 +334,22 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 expected_probabilities=prediction_results)
 
         return new_explanation
+
+    def _prepare_explanation(self, distances, new_explanation, top_labels, yss):
+        new_explanation.predict_proba = yss[0]
+        if top_labels:
+            # legacy fields
+            sorted_top_labels = list(np.argsort(yss[0])[-top_labels:])
+            new_explanation.top_labels = list(sorted_top_labels)
+            new_explanation.top_labels.reverse()
+            label_indices_to_explain = sorted(sorted_top_labels)
+        else:
+            label_indices_to_explain = list(range(yss.shape[1]))
+        prediction_results = self._get_prediction_results(yss)
+        new_explanation.explained_labels_id = list(label_indices_to_explain)
+        new_explanation.training_data_distances = distances
+        new_explanation.prediction_for_explained_model = prediction_results[0, :]
+        return label_indices_to_explain, prediction_results
 
     @staticmethod
     def _get_prediction_results(yss):

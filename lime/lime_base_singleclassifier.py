@@ -6,7 +6,7 @@ import numpy as np
 from lime.lime_base_mod import LimeBaseMod
 from sklearn.tree import DecisionTreeClassifier
 from collections import defaultdict
-
+from lime.tools import convert_binary_output_to_decimal
 
 class LimeBaseSingleDecisionTree(LimeBaseMod):
     """
@@ -95,12 +95,10 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
 
     @staticmethod
     def _get_explanation(local_surrogate, used_features):
-
         explanation = sorted(
             zip(used_features, local_surrogate.feature_importances_),
             key=lambda x: np.abs(x[1]),
             reverse=True)
-
         return explanation
 
     def _train_local_surrogate(self,
@@ -125,7 +123,7 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
         data_to_train_local_surrogate = neighborhood_data[:, used_features]
         local_surrogate.fit(
             data_to_train_local_surrogate,
-            classification_labels_columns,
+            convert_binary_output_to_decimal(classification_labels_columns),
             sample_weight=weights)
         return data_to_train_local_surrogate, local_surrogate, used_features, weights
 
@@ -141,7 +139,7 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
             popular labels will be selected.
         """
         counter_for_feature = defaultdict(int)
-        for column in regression_labels_columns:
+        for column in regression_labels_columns.T:
             used_features = self.feature_selection(
                 neighborhood_data,
                 column,
