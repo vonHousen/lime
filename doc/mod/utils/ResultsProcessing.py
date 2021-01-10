@@ -15,7 +15,10 @@ class ResultsProcessing:
                  losses_std_for_cv_model,
                  fidelity_loss_on_explanation,
                  fidelity_loss_on_generated_data,
-                 fidelity_loss_distribution_quantiles):
+                 fidelity_loss_on_kfold_mean,
+                 fidelity_loss_on_kfold_std,
+                 fidelity_loss_distribution_quantiles
+                 ):
         self.models = models
         self.labels_count = labels_count
         self.scores_for_surrogate_model = scores_for_surrogate_model
@@ -24,6 +27,8 @@ class ResultsProcessing:
         self.losses_std_for_cv_model = losses_std_for_cv_model
         self.fidelity_loss_on_explanation = fidelity_loss_on_explanation
         self.fidelity_loss_on_generated_data = fidelity_loss_on_generated_data
+        self.fidelity_loss_on_kfold_mean = fidelity_loss_on_kfold_mean
+        self.fidelity_loss_on_kfold_std = fidelity_loss_on_kfold_std
         self.fidelity_loss_distribution = fidelity_loss_distribution_quantiles
 
     @classmethod
@@ -38,6 +43,8 @@ class ResultsProcessing:
             losses_std_for_cv_model = np.load(file)
             fidelity_loss_on_explanation = np.load(file)
             fidelity_loss_on_generated_data = np.load(file)
+            fidelity_loss_on_kfold_mean = np.load(file)
+            fidelity_loss_on_kfold_std = np.load(file)
             fidelity_loss_distribution = np.load(file)
         return cls(models,
                    labels_count,
@@ -47,6 +54,8 @@ class ResultsProcessing:
                    losses_std_for_cv_model,
                    fidelity_loss_on_explanation,
                    fidelity_loss_on_generated_data,
+                   fidelity_loss_on_kfold_mean,
+                   fidelity_loss_on_kfold_std,
                    fidelity_loss_distribution)
 
     def save_results(self,
@@ -58,6 +67,8 @@ class ResultsProcessing:
             np.save(file, self.losses_std_for_cv_model)
             np.save(file, self.fidelity_loss_on_explanation)
             np.save(file, self.fidelity_loss_on_generated_data)
+            np.save(file, self.fidelity_loss_on_kfold_mean)
+            np.save(file, self.fidelity_loss_on_kfold_std)
             np.save(file, self.fidelity_loss_distribution)
 
     def _plot_for_each_label(self,

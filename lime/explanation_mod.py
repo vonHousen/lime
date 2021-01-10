@@ -37,6 +37,7 @@ class ExplanationMod(Explanation):
         self.squared_errors_matrix = None
         self.training_data_distances = None
         self.cv_evaluation_results = {}
+        self.ensemble_mse_for_cv = None
 
     def _get_labels_ordered(self, order):
         """
@@ -177,6 +178,25 @@ class ExplanationMod(Explanation):
             scalar - fidelity loss (MSE) calculated on complete generated unweighted dataset.
         """
         return self.prediction_loss_on_training_data
+
+    def get_fidelity_loss_on_kfold(self, out="raw"):
+        """
+        Function assesses efficiency of surrogate model by comparing its predictions' probabilities and explained
+        model's ones - predictions on test data (KFold). Ensemble of sub-explainers was treated as a single regressor.
+        Uses MSE as loss function.
+
+        Returns:
+            list - fidelity loss (MSE) calculated on complete generated unweighted dataset.
+        """
+        raw_results = np.array(self.ensemble_mse_for_cv)
+        if out == "raw":
+            return raw_results
+        elif out == "mean":
+            return np.mean(raw_results)
+        elif out == "std":
+            return np.std(raw_results)
+        else:
+            raise NotImplementedError()
 
     def get_fidelity_loss_distribution(self, bins=None, quantiles=None):
         """

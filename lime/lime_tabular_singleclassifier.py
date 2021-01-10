@@ -141,19 +141,22 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             prediction_results)
 
         if self.with_kfold is not None:
-            cv_evaluation_results = self._cross_validate_surrogate(
+            kf = KFold(n_splits=self.with_kfold, shuffle=True, random_state=42)
+            (cv_evaluation_results, cv_subexplainers, cv_used_features) = self._cross_validate_subexplainer(
                 distances,
                 label_indices_to_explain,
                 model_regressor,
                 num_features,
                 scaled_data,
                 yss,
-                prediction_results)
+                prediction_results,
+                kf)
 
         for i, label_idx in enumerate(label_indices_to_explain):
 
             if self.with_kfold is not None:
                 new_explanation.cv_evaluation_results[label_idx] = cv_evaluation_results
+
             new_explanation.local_exp[label_idx] = feature_with_coef
             new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance[i]
             new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
@@ -163,24 +166,30 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             new_explanation.prediction_loss_on_training_data = prediction_loss_on_training_data
             new_explanation.squared_errors_matrix = squared_errors_matrix
 
+            if self.with_kfold is not None:
+                new_explanation.ensemble_mse_for_cv = cv_evaluation_results
+
+
         return new_explanation
 
-    def _cross_validate_surrogate(self,
-                                  distances,
-                                  label_idx,
-                                  model_regressor,
-                                  num_features,
-                                  scaled_data,
-                                  yss,
-                                  labels_column):
+    def _cross_validate_subexplainer(self,
+                                     distances,
+                                     label_idx,
+                                     model_regressor,
+                                     num_features,
+                                     scaled_data,
+                                     yss,
+                                     labels_column,
+                                     kf):
         """
         Performs cross validation on given data.
         :return: np.array of evaluation results - MSE.
         """
         evaluation_results = []
-        kf = KFold(n_splits=self.with_kfold, shuffle=True)
+        cv_subexplainers = []
+        used_features_all = []
         for train_indices, test_indices in kf.split(scaled_data):
-            (_, _, local_surrogate, used_features, _) =\
+            (_, _, cv_subexplainer, used_features, _) =\
                 self.base.explain_instance_with_data(
                     scaled_data[train_indices],
                     yss[train_indices],
@@ -194,10 +203,13 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             test_x_data = scaled_data[row_x_indices, column_x_indices]
             test_y_data = labels_column[test_indices]
             predicted = convert_decimal_output_to_binary(
-                local_surrogate.predict(test_x_data), classes_count=test_y_data.shape[1])
+                cv_subexplainer.predict(test_x_data), classes_count=test_y_data.shape[1])
             evaluation_results.append(metrics.mean_squared_error(test_y_data, predicted))
 
-        return evaluation_results
+            cv_subexplainers.append(cv_subexplainer)
+            used_features_all.append(used_features)
+
+        return evaluation_results, cv_subexplainers, used_features_all
 
 
     @staticmethod
