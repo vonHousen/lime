@@ -3,6 +3,7 @@ Custom modification of LimeTabularExplainerMod - uses LimeBaseSingleDecisionTree
 """
 import warnings
 import numpy as np
+from sklearn.model_selection import KFold
 
 import lime.explanation_mod as explanation_mod
 from lime.lime_tabular_mod import LimeTabularExplainerMod
@@ -31,7 +32,8 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                  discretizer='quartile',
                  sample_around_instance=False,
                  random_state=None,
-                 training_data_stats=None):
+                 training_data_stats=None,
+                 with_kfold=None):
         """Init function.
 
         Args:
@@ -93,7 +95,8 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=LimeBaseSingleDecisionTree()
+            custom_lime_base=LimeBaseSingleDecisionTree(),
+            with_kfold=with_kfold
         )
 
     def _create_explanation(self,
@@ -115,7 +118,11 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         label_indices_to_explain, prediction_results = \
             self._prepare_explanation(distances, new_explanation, top_labels, yss)
 
-        (_, feature_with_coef, local_surrogate, data_used_to_train_local_surrogate, examples_weights) = \
+        (_,
+         feature_with_coef,
+         local_surrogate,
+         used_features,
+         examples_weights) = \
             self.base.explain_instance_with_data(
                 scaled_data,
                 yss,
@@ -124,6 +131,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                 num_features,
                 feature_selection=self.feature_selection)
 
+        data_used_to_train_local_surrogate = scaled_data[:, used_features]
         (prediction_on_explained_instance,
          prediction_score_on_training_data,
          prediction_loss_on_training_data,
@@ -132,8 +140,20 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             data_used_to_train_local_surrogate,
             prediction_results)
 
+        if self.with_kfold is not None:
+            cv_evaluation_results = self._cross_validate_surrogate(
+                distances,
+                label_indices_to_explain,
+                model_regressor,
+                num_features,
+                scaled_data,
+                yss,
+                prediction_results)
+
         for i, label_idx in enumerate(label_indices_to_explain):
 
+            if self.with_kfold is not None:
+                new_explanation.cv_evaluation_results[label_idx] = cv_evaluation_results
             new_explanation.local_exp[label_idx] = feature_with_coef
             new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance[i]
             new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
@@ -144,6 +164,41 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             new_explanation.squared_errors_matrix = squared_errors_matrix
 
         return new_explanation
+
+    def _cross_validate_surrogate(self,
+                                  distances,
+                                  label_idx,
+                                  model_regressor,
+                                  num_features,
+                                  scaled_data,
+                                  yss,
+                                  labels_column):
+        """
+        Performs cross validation on given data.
+        :return: np.array of evaluation results - MSE.
+        """
+        evaluation_results = []
+        kf = KFold(n_splits=self.with_kfold, shuffle=True)
+        for train_indices, test_indices in kf.split(scaled_data):
+            (_, _, local_surrogate, used_features, _) =\
+                self.base.explain_instance_with_data(
+                    scaled_data[train_indices],
+                    yss[train_indices],
+                    distances[train_indices],
+                    label_idx,
+                    num_features,
+                    model_regressor=model_regressor,
+                    feature_selection=self.feature_selection)
+            row_x_indices = np.reshape(test_indices, (-1, 1))
+            column_x_indices = np.repeat(np.reshape(used_features, (1, -1)), test_indices.shape[0], axis=0)
+            test_x_data = scaled_data[row_x_indices, column_x_indices]
+            test_y_data = labels_column[test_indices]
+            predicted = convert_decimal_output_to_binary(
+                local_surrogate.predict(test_x_data), classes_count=test_y_data.shape[1])
+            evaluation_results.append(metrics.mean_squared_error(test_y_data, predicted))
+
+        return evaluation_results
+
 
     @staticmethod
     def _evaluate_explainer(local_surrogate,

@@ -140,7 +140,8 @@ class LimeTabularExplainer(object):
                  sample_around_instance=False,
                  random_state=None,
                  training_data_stats=None,
-                 custom_lime_base=None):
+                 custom_lime_base=None,
+                 with_kfold=None):
         """Init function.
 
         Args:
@@ -188,6 +189,7 @@ class LimeTabularExplainer(object):
                 "feature_frequencies"
             custom_lime_base: custom lime_base object, that creates local surrogate model.
                 If None, default one (LimeBase) will be used.
+            with_kfold: if not None, surrogate is trained with k cross validation method.
         """
         self.random_state = check_random_state(random_state)
         self.mode = mode
@@ -291,6 +293,8 @@ class LimeTabularExplainer(object):
                                                  float(sum(frequencies)))
             self.scaler.mean_[feature] = 0
             self.scaler.scale_[feature] = 1
+
+        self.with_kfold = with_kfold
 
     @staticmethod
     def convert_and_round(values):

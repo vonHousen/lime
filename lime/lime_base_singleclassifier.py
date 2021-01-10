@@ -90,7 +90,7 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
         return (None,   # deprecated field
                 explanation,
                 local_surrogate,
-                data_to_train_local_surrogate,
+                used_features,
                 weights)
 
     @staticmethod

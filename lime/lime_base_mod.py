@@ -89,7 +89,7 @@ class LimeBaseMod(LimeBase):
         return (local_surrogate.intercept_,
                 explanation,
                 local_surrogate,
-                data_to_train_local_surrogate,
+                used_features,
                 weights)
 
     @staticmethod

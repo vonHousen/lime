@@ -11,6 +11,8 @@ class ResultsProcessing:
                  labels_count,
                  scores_for_surrogate_model,
                  losses_for_surrogate_model,
+                 losses_mean_for_cv_model,
+                 losses_std_for_cv_model,
                  fidelity_loss_on_explanation,
                  fidelity_loss_on_generated_data,
                  fidelity_loss_distribution_quantiles):
@@ -18,6 +20,8 @@ class ResultsProcessing:
         self.labels_count = labels_count
         self.scores_for_surrogate_model = scores_for_surrogate_model
         self.losses_for_surrogate_model = losses_for_surrogate_model
+        self.losses_mean_for_cv_model = losses_mean_for_cv_model
+        self.losses_std_for_cv_model = losses_std_for_cv_model
         self.fidelity_loss_on_explanation = fidelity_loss_on_explanation
         self.fidelity_loss_on_generated_data = fidelity_loss_on_generated_data
         self.fidelity_loss_distribution = fidelity_loss_distribution_quantiles
@@ -30,6 +34,8 @@ class ResultsProcessing:
         with open(f"{filename}.npy", "rb") as file:
             scores_for_surrogate_model = np.load(file)
             losses_for_surrogate_model = np.load(file)
+            losses_mean_for_cv_model = np.load(file)
+            losses_std_for_cv_model = np.load(file)
             fidelity_loss_on_explanation = np.load(file)
             fidelity_loss_on_generated_data = np.load(file)
             fidelity_loss_distribution = np.load(file)
@@ -37,6 +43,8 @@ class ResultsProcessing:
                    labels_count,
                    scores_for_surrogate_model,
                    losses_for_surrogate_model,
+                   losses_mean_for_cv_model,
+                   losses_std_for_cv_model,
                    fidelity_loss_on_explanation,
                    fidelity_loss_on_generated_data,
                    fidelity_loss_distribution)
@@ -46,6 +54,8 @@ class ResultsProcessing:
         with open(f"{filename}.npy", "wb") as file:
             np.save(file, self.scores_for_surrogate_model)
             np.save(file, self.losses_for_surrogate_model)
+            np.save(file, self.losses_mean_for_cv_model)
+            np.save(file, self.losses_std_for_cv_model)
             np.save(file, self.fidelity_loss_on_explanation)
             np.save(file, self.fidelity_loss_on_generated_data)
             np.save(file, self.fidelity_loss_distribution)

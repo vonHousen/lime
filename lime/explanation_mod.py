@@ -36,6 +36,7 @@ class ExplanationMod(Explanation):
         self.prediction_loss_on_training_data = None
         self.squared_errors_matrix = None
         self.training_data_distances = None
+        self.cv_evaluation_results = {}
 
     def _get_labels_ordered(self, order):
         """
@@ -107,8 +108,8 @@ class ExplanationMod(Explanation):
     def get_losses_for_surrogate_model(self,
                                        order="default"):
         """
-        Returns prediction losses by surrogate model on its training dataset. Each label (and each sub-explainer) was
-        evaluated separately.
+        Returns prediction losses of surrogate models on their training datasets. Each label (and each sub-explainer)
+        was evaluated separately.
         Uses MSE as loss function.
 
         Args:
@@ -121,6 +122,34 @@ class ExplanationMod(Explanation):
         for label in self._get_labels_ordered(order):
             prediction_losses.append(self.losses_on_generated_data[label])
         return prediction_losses
+
+    def get_losses_for_cv_model(self,
+                                order="default",
+                                out="raw"):
+        """
+        Returns prediction losses of surrogate models evaluated with KFold. Each label (and each sub-explainer) was
+        evaluated separately.
+        Uses MSE as loss function.
+
+        Args:
+            order - order of returned losses - see _get_labels_ordered().
+
+        Returns:
+            array of MSE for each sub-explainer, for each validation.
+        """
+        evaluation_results = []
+        for label in self._get_labels_ordered(order):
+            evaluation_results.append(self.cv_evaluation_results[label])
+
+        raw_results = np.array(evaluation_results)
+        if out == "raw":
+            return raw_results
+        elif out == "mean":
+            return np.mean(raw_results, axis=1)
+        elif out == "std":
+            return np.std(raw_results, axis=1)
+        else:
+            raise NotImplementedError()
 
     def get_fidelity_loss_on_explanation(self):
         """

@@ -33,7 +33,8 @@ class LTEMultiRegressionTree(LimeTabularExplainerMod):
                  discretizer='quartile',
                  sample_around_instance=False,
                  random_state=None,
-                 training_data_stats=None):
+                 training_data_stats=None,
+                 with_kfold=None):
         """Init function.
 
         Args:
@@ -95,5 +96,6 @@ class LTEMultiRegressionTree(LimeTabularExplainerMod):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=LimeBaseMultiRegressionTree()
+            custom_lime_base=LimeBaseMultiRegressionTree(),
+            with_kfold=with_kfold
         )
