@@ -309,6 +309,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             new_explanation.score = prediction_score_on_training_data
             new_explanation.local_pred = prediction_on_explained_instance
 
+        new_explanation.local_surrogates_ensemble = local_surrogates_ensemble
         if top_labels == yss.shape[1]:
             (new_explanation.prediction_loss_on_training_data,
              new_explanation.squared_errors_matrix) = self._evaluate_ensemble(

@@ -38,6 +38,7 @@ class ExplanationMod(Explanation):
         self.training_data_distances = None
         self.cv_evaluation_results = {}
         self.ensemble_mse_for_cv = None
+        self.local_surrogates_ensemble = {}
 
     def _get_labels_ordered(self, order):
         """
