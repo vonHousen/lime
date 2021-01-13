@@ -99,6 +99,16 @@ class ResultsProcessing:
             data=self.losses_for_surrogate_model,
             data_desc="losses")
 
+    def plot_losses_mean_for_cv_model(self):
+        self._plot_for_each_label(
+            data=self.losses_mean_for_cv_model,
+            data_desc="losses (CV - mean)")
+
+    def plot_losses_std_for_cv_model(self):
+        self._plot_for_each_label(
+            data=self.losses_std_for_cv_model,
+            data_desc="losses (CV - std)")
+
     def _plot_for_each_model(self,
                              data,
                              data_desc):
@@ -128,6 +138,16 @@ class ResultsProcessing:
             data=self.fidelity_loss_on_generated_data,
             data_desc="fidelity losses on generated data")
 
+    def plot_fidelity_loss_on_kfold_mean(self):
+        self._plot_for_each_model(
+            data=self.fidelity_loss_on_kfold_mean,
+            data_desc="fidelity losses (CV - mean) on generated data")
+
+    def plot_fidelity_loss_on_kfold_std(self):
+        self._plot_for_each_model(
+            data=self.fidelity_loss_on_kfold_std,
+            data_desc="fidelity losses (CV - std) on generated data")
+
     def plot_fidelity_loss_distribution(self, domain_unit="Quantiles"):
         fig, axs = plt.subplots(nrows=len(self.models) // 3, ncols=3)
         fig.set_figwidth(15)
@@ -142,3 +162,42 @@ class ResultsProcessing:
             axs[idx_row][idx_col].set_xlabel(f"{domain_unit} of samples' distance")
             axs[idx_row][idx_col].set_title(f"explained model: {classifier_name}")
         plt.show()
+
+
+class CompareResults:
+
+    def __init__(self,
+                 models):
+        self.model_names = [model[0] for model in models]
+
+    def plot_by_explained_model_and_variant(self,
+                                            data_default,
+                                            data_multiregressor,
+                                            data_multiclassifier,
+                                            data_singleclassifier,
+                                            ylabel,
+                                            title,
+                                            ymin=None):
+
+        labels = self.model_names
+        label_locations = np.arange(len(labels))
+
+        bar_width = 0.15
+        fig, ax = plt.subplots(figsize=(12, 4))
+
+        ax.bar(label_locations - 1.5 * bar_width, data_default, bar_width, label="Wariant oryginalny")
+        ax.bar(label_locations - 0.5 * bar_width, data_multiregressor, bar_width, label="Komitet drzew regresji")
+        ax.bar(label_locations + 0.5 * bar_width, data_multiclassifier, bar_width, label="Komitet drzew decyzyjnych")
+        ax.bar(label_locations + 1.5 * bar_width, data_singleclassifier, bar_width, label="Drzewo decyzyjne")
+
+        if ymin is not None:
+            ax.set_ylim(ymin=ymin)
+        ax.set_xlabel("Wyjaśniany model")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.set_xticks(label_locations)
+        ax.set_xticklabels(labels)
+        ax.legend()
+        ax.grid(axis='y')
+        fig.show()
+
