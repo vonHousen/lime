@@ -15,7 +15,8 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
     def __init__(self,
                  kernel_fn=None,
                  verbose=False,
-                 random_state=None):
+                 random_state=None,
+                 **regression_tree_kwargs):
         """Init function
 
         Args:
@@ -25,12 +26,16 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             random_state: an integer or numpy.RandomState that will be used to
                 generate random numbers. If None, the random state will be
                 initialized using the internal numpy seed.
+            regression_tree_kwargs: additional keyword arguments to be passed to DecisionTreeRegressor
         """
         super().__init__(
             kernel_fn=kernel_fn,
             verbose=verbose,
             random_state=random_state
         )
+        if len({"random_state", "max_depth"} & regression_tree_kwargs.keys()) > 0:
+            raise RuntimeError("Argument in regression_tree_kwargs not allowed!")
+        self.regression_tree_kwargs = regression_tree_kwargs
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -38,7 +43,7 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
                                    distances,
                                    label,
                                    num_features,
-                                   feature_selection='auto',
+                                   feature_selection='none',
                                    model_regressor=None):
         """Takes perturbed data, labels and distances, returns explanation.
 
@@ -50,18 +55,8 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
             distances: distances to original data point.
             label: label for which we want an explanation
             num_features: maximum number of features in explanation
-            feature_selection: how to select num_features. options are:
-                'forward_selection': iteratively add features to the model.
-                    This is costly when num_features is high
-                'highest_weights': selects the features that have the highest
-                    product of absolute weight * original data point when
-                    learning with all the features
-                'lasso_path': chooses features based on the lasso
-                    regularization path
-                'none': uses all features, ignores num_features
-                'auto': uses forward_selection if num_features <= 6, and
-                    'highest_weights' otherwise.
-            model_regressor: deprecated
+            feature_selection: deprecated - it cedes responsibility to the Tree, not feature_selection.
+            model_regressor: deprecated - DecisionTreeRegressor is always selected
 
         Returns:
             (intercept, exp, score, local_pred):
@@ -76,9 +71,12 @@ class LimeBaseMultiRegressionTree(LimeBaseMod):
         data_to_train_local_surrogate, local_surrogate, used_features, weights =\
             self._train_local_surrogate(
                 distances,
-                feature_selection,
+                "none",
                 label,
-                DecisionTreeRegressor(random_state=self.random_state),
+                DecisionTreeRegressor(
+                    random_state=self.random_state,
+                    max_depth=num_features,
+                    **self.regression_tree_kwargs),
                 neighborhood_data,
                 neighborhood_labels,
                 num_features)

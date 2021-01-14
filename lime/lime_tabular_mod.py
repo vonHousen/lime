@@ -37,7 +37,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                  random_state=None,
                  training_data_stats=None,
                  custom_lime_base=None,
-                 with_kfold=None):
+                 with_kfold=None,
+                 use_inversed_data_for_training=False):
         """Init function.
 
         Args:
@@ -107,6 +108,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             custom_lime_base=custom_lime_base,
             with_kfold=with_kfold
         )
+        self.use_inversed_data_for_training = use_inversed_data_for_training
 
     def explain_instance(self,
                          data_row,
@@ -154,7 +156,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             An Explanation object (see explanation.py) with the corresponding
             explanations.
         """
-        distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss = \
+        distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss, inversed_data = \
             self._get_prerequisites_for_explaining(
                 data_row,
                 distance_metric,
@@ -165,7 +167,15 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             )
 
         new_explanation = self._create_explanation(
-            distances, domain_mapper, labels, model_regressor, num_features, scaled_data, top_labels, yss
+            distances,
+            domain_mapper,
+            labels,
+            model_regressor,
+            num_features,
+            scaled_data,
+            top_labels,
+            yss,
+            inversed_data
         )
 
         return new_explanation
@@ -225,7 +235,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                                           discretized_feature_names=discretized_feature_names,
                                           feature_indexes=feature_indexes)
 
-        return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss
+        return distances, domain_mapper, max_y, min_y, predicted_value, scaled_data, yss, inversed_data
 
     def _create_explanation(self,
                             distances,
@@ -235,7 +245,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                             num_features,
                             scaled_data,
                             top_labels,
-                            yss):
+                            yss,
+                            inversed_data):
         """
         Factory method for creating and evaluating new explanation.
         """
@@ -253,6 +264,10 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
             kf = KFold(n_splits=self.with_kfold, shuffle=True, random_state=42)
             cv_subexplainers_for_label_idx = {}
             cv_used_features_for_label_idx = {}
+        if self.use_inversed_data_for_training:
+            data_to_train_local_surrogate = inversed_data
+        else:
+            data_to_train_local_surrogate = scaled_data
 
         for label_idx in label_indices_to_explain:
 
@@ -262,7 +277,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
              used_features,
              examples_weights) =\
                 self.base.explain_instance_with_data(
-                    scaled_data,
+                    data_to_train_local_surrogate,
                     yss,
                     distances,
                     label_idx,
@@ -270,7 +285,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                     model_regressor=model_regressor,
                     feature_selection=self.feature_selection)
 
-            data_used_to_train_local_surrogate = scaled_data[:, used_features]
+            data_used_to_train_local_surrogate = data_to_train_local_surrogate[:, used_features]
             local_surrogates_ensemble[label_idx] = local_surrogate
             datasets_for_each_explainer[label_idx] = data_used_to_train_local_surrogate
 
@@ -282,7 +297,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                     label_idx,
                     model_regressor,
                     num_features,
-                    scaled_data,
+                    data_to_train_local_surrogate,
                     yss,
                     labels_column,
                     kf)
@@ -316,7 +331,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 local_surrogates_ensemble,
                 label_indices_to_explain,
                 data_subset_for_each_explainer=datasets_for_each_explainer,
-                training_data=scaled_data,
+                training_data=data_to_train_local_surrogate,
                 expected_probabilities=prediction_results
             )
 
@@ -324,7 +339,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                 new_explanation.ensemble_mse_for_cv = self._cross_validate_ensemble(
                     kf,
                     label_indices_to_explain,
-                    dataset=scaled_data,
+                    dataset=data_to_train_local_surrogate,
                     expected_probabilities=prediction_results,
                     cv_subexplainers_for_label_idx=cv_subexplainers_for_label_idx,
                     cv_used_features_for_label_idx=cv_used_features_for_label_idx
@@ -341,7 +356,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                                      label_idx,
                                      model_regressor,
                                      num_features,
-                                     scaled_data,
+                                     training_data,
                                      yss,
                                      labels_column,
                                      kf):
@@ -352,10 +367,10 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         evaluation_results = []
         cv_subexplainers = []
         used_features_all = []
-        for train_indices, test_indices in kf.split(scaled_data):
+        for train_indices, test_indices in kf.split(training_data):
             (_, _, cv_subexplainer, used_features, _) =\
                 self.base.explain_instance_with_data(
-                    scaled_data[train_indices],
+                    training_data[train_indices],
                     yss[train_indices],
                     distances[train_indices],
                     label_idx,
@@ -364,7 +379,7 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
                     feature_selection=self.feature_selection)
             row_x_indices = np.reshape(test_indices, (-1, 1))
             column_x_indices = np.repeat(np.reshape(used_features, (1, -1)), test_indices.shape[0], axis=0)
-            test_x_data = scaled_data[row_x_indices, column_x_indices]
+            test_x_data = training_data[row_x_indices, column_x_indices]
             test_y_data = labels_column[test_indices]
             predicted = cv_subexplainer.predict(test_x_data)
             evaluation_results.append(metrics.mean_squared_error(test_y_data, predicted))

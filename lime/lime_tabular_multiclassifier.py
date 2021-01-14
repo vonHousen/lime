@@ -32,7 +32,9 @@ class LTEMultiDecisionTree(LimeTabularExplainerMod):
                  sample_around_instance=False,
                  random_state=None,
                  training_data_stats=None,
-                 with_kfold=None):
+                 with_kfold=None,
+                 use_inversed_data_for_training=False,
+                 **decision_tree_kwargs):
         """Init function.
 
         Args:
@@ -94,8 +96,9 @@ class LTEMultiDecisionTree(LimeTabularExplainerMod):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=LimeBaseMultiDecisionTree(),
-            with_kfold=with_kfold
+            custom_lime_base=LimeBaseMultiDecisionTree(**decision_tree_kwargs),
+            with_kfold=with_kfold,
+            use_inversed_data_for_training=use_inversed_data_for_training
         )
 
     @staticmethod

@@ -33,7 +33,10 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                  sample_around_instance=False,
                  random_state=None,
                  training_data_stats=None,
-                 with_kfold=None):
+                 with_kfold=None,
+                 use_inversed_data_for_training=False,
+                 max_depth=None,
+                 **decision_tree_kwargs):
         """Init function.
 
         Args:
@@ -95,8 +98,12 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=LimeBaseSingleDecisionTree(),
-            with_kfold=with_kfold
+            custom_lime_base=LimeBaseSingleDecisionTree(
+                max_depth=max_depth,
+                **decision_tree_kwargs
+            ),
+            with_kfold=with_kfold,
+            use_inversed_data_for_training=use_inversed_data_for_training
         )
 
     def _create_explanation(self,
@@ -107,7 +114,8 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                             num_features,
                             scaled_data,
                             top_labels,
-                            yss):
+                            yss,
+                            inversed_data):
         """
         Factory method for creating and evaluating new explanation.
         """
@@ -117,6 +125,10 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
 
         label_indices_to_explain, prediction_results = \
             self._prepare_explanation(distances, new_explanation, top_labels, yss)
+        if self.use_inversed_data_for_training:
+            data_to_train_local_surrogate = inversed_data
+        else:
+            data_to_train_local_surrogate = scaled_data
 
         (_,
          feature_with_coef,
@@ -124,14 +136,14 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
          used_features,
          examples_weights) = \
             self.base.explain_instance_with_data(
-                scaled_data,
+                data_to_train_local_surrogate,
                 yss,
                 distances,
                 label_indices_to_explain,
                 num_features,
                 feature_selection=self.feature_selection)
 
-        data_used_to_train_local_surrogate = scaled_data[:, used_features]
+        data_used_to_train_local_surrogate = data_to_train_local_surrogate[:, used_features]
         (prediction_on_explained_instance,
          prediction_score_on_training_data,
          prediction_loss_on_training_data,
@@ -147,7 +159,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                 label_indices_to_explain,
                 model_regressor,
                 num_features,
-                scaled_data,
+                data_to_train_local_surrogate,
                 yss,
                 prediction_results,
                 kf)
@@ -177,7 +189,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                                      label_idx,
                                      model_regressor,
                                      num_features,
-                                     scaled_data,
+                                     training_data,
                                      yss,
                                      labels_column,
                                      kf):
@@ -188,10 +200,10 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         evaluation_results = []
         cv_subexplainers = []
         used_features_all = []
-        for train_indices, test_indices in kf.split(scaled_data):
+        for train_indices, test_indices in kf.split(training_data):
             (_, _, cv_subexplainer, used_features, _) =\
                 self.base.explain_instance_with_data(
-                    scaled_data[train_indices],
+                    training_data[train_indices],
                     yss[train_indices],
                     distances[train_indices],
                     label_idx,
@@ -200,7 +212,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                     feature_selection=self.feature_selection)
             row_x_indices = np.reshape(test_indices, (-1, 1))
             column_x_indices = np.repeat(np.reshape(used_features, (1, -1)), test_indices.shape[0], axis=0)
-            test_x_data = scaled_data[row_x_indices, column_x_indices]
+            test_x_data = training_data[row_x_indices, column_x_indices]
             test_y_data = labels_column[test_indices]
             predicted = convert_decimal_output_to_binary(
                 cv_subexplainer.predict(test_x_data), classes_count=test_y_data.shape[1])
