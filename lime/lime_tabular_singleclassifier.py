@@ -121,7 +121,10 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         """
         new_explanation = explanation_mod.ExplanationMod(
             domain_mapper,
-            class_names=self.class_names)
+            inversed_data[0].reshape(1, -1),
+            class_names=self.class_names,
+            feature_names=self.feature_names
+        )
 
         label_indices_to_explain, prediction_results = \
             self._prepare_explanation(distances, new_explanation, top_labels, yss)
@@ -180,7 +183,6 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
 
             if self.with_kfold is not None:
                 new_explanation.ensemble_mse_for_cv = cv_evaluation_results
-
 
         return new_explanation
 

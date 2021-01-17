@@ -1,11 +1,13 @@
 
 from lime.explanation import Explanation
-from sklearn import metrics
+from sklearn import metrics, tree
 import lime.tools as lime_utils
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import pydotplus
+import collections
 
 
 class ExplanationMod(Explanation):
@@ -13,8 +15,10 @@ class ExplanationMod(Explanation):
 
     def __init__(self,
                  domain_mapper,
+                 explained_sample,
                  class_names=None,
-                 random_state=None):
+                 random_state=None,
+                 feature_names=None):
         """
         Args:
             domain_mapper: must inherit from DomainMapper class
@@ -38,7 +42,29 @@ class ExplanationMod(Explanation):
         self.training_data_distances = None
         self.cv_evaluation_results = {}
         self.ensemble_mse_for_cv = None
-        self.local_surrogates_ensemble = {}
+        self._local_surrogates_ensemble = {}
+        self.feature_names = feature_names
+        self.explained_sample = explained_sample
+
+        self.colors_palette_10_positive = {
+            0.9: "#006837",
+            0.8: "#1a9850",
+            0.7: "#66bd63",
+            0.6: "#a6d96a",
+            0.5: "#d9ef8b"
+        }
+        self.colors_palette_10_unknown = "#fdae61"
+        self.colors_palette_10_negative = "#d73027"
+        self.unknown_boundary_probability = None
+
+    @property
+    def local_surrogates_ensemble(self):
+        return self._local_surrogates_ensemble
+
+    @local_surrogates_ensemble.setter
+    def local_surrogates_ensemble(self, x):
+        self.unknown_boundary_probability = 1. / len(x)
+        self._local_surrogates_ensemble = x
 
     def _get_labels_ordered(self, order):
         """
@@ -267,3 +293,186 @@ class ExplanationMod(Explanation):
         plt.ylabel("squared error of data instance")
         plt.legend()
         plt.show()
+
+    def render_explanation_tree(self,
+                                file_to_render="tree.png"):
+
+        clf = self._get_winning_subexplainer()
+        if not isinstance(clf, tree.DecisionTreeRegressor):
+            raise NotImplementedError("Explanation Tree can be rendered only for LTEMultiRegressionTree.")
+
+        dot_data = tree.export_graphviz(
+            clf,
+            feature_names=self.feature_names,
+            label="none",
+            out_file=None,
+            filled=True,
+            impurity=False,
+            proportion=True,
+            rounded=True,
+            rotate=True,
+        )
+        graph = pydotplus.graph_from_dot_data(dot_data)
+
+        self._edit_edges_labels(graph, clf.tree_)
+        self._color_nodes(graph, 0, clf.tree_)
+        self._color_decision_path(clf, graph)
+
+        graph.write_png(file_to_render)
+
+    def _edit_edges_labels(self, graph, tree):
+
+        self._edit_first_edges_labels(graph)
+
+        children_left = tree.children_left
+        children_right = tree.children_right
+
+        stack = [(0, 0)]  # start with the root node id (0) and its depth (0)
+        while len(stack) > 0:
+            # `pop` ensures each node is only visited once
+            node_id, depth = stack.pop()
+            # If the left and right child of a node is not the same we have a split node
+            is_split_node = children_left[node_id] != children_right[node_id]
+            # If a split node, append left and right children and depth to `stack`
+            # so we can loop through them
+
+            current_node = graph.get_node(str(node_id))[0]
+            left_child = children_left[node_id]
+            right_child = children_right[node_id]
+
+            if not is_split_node:
+                continue
+
+            stack.append((left_child, depth + 1))
+            stack.append((right_child, depth + 1))
+
+            if node_id != 0:
+                self._edit_outcoming_edges_labels(
+                    graph,
+                    current_node,
+                    left_child,
+                    right_child)
+
+    @staticmethod
+    def _edit_first_edges_labels(graph):
+        # change first edges' labels
+        for edge in graph.get_edge_list():
+            label_angle = edge.obj_dict["attributes"].get("labelangle")
+            if label_angle is not None:
+                edge.set_labelangle(0.5 * int(label_angle))
+                edge.set_labeldistance(5.0)
+
+    @staticmethod
+    def _edit_outcoming_edges_labels(graph,
+                                     current_node,
+                                     left_child,
+                                     right_child,
+                                     label_distance=2.5,
+                                     label_angle_abs=30.,
+                                     font_size=11):
+
+        true_node = graph.get_node(str(left_child))[0]
+        true_edge = graph.get_edge(current_node.get_name(), true_node.get_name())[0]
+        true_edge.set_taillabel("True")
+        true_edge.set_labeldistance(label_distance)
+        true_edge.set_labelangle(label_angle_abs)
+        true_edge.set_fontsize(font_size)
+
+        false_node = graph.get_node(str(right_child))[0]
+        false_edge = graph.get_edge(current_node.get_name(), false_node.get_name())[0]
+        false_edge.set_taillabel("False")
+        false_edge.set_labeldistance(label_distance)
+        false_edge.set_labelangle(-1.0 * label_angle_abs)
+        false_edge.set_fontsize(font_size)
+
+    def _color_nodes(self,
+                     graph,
+                     node_id,
+                     tree):
+        values = tree.value
+        children_left = tree.children_left
+        children_right = tree.children_right
+        is_split_node = children_left[node_id] != children_right[node_id]
+        current_node = graph.get_node(str(node_id))[0]
+        left_child = children_left[node_id]
+        right_child = children_right[node_id]
+        current_node_probability = values[node_id][0][0]
+
+        if not is_split_node:
+            selected_color = self._get_current_node_color(current_node_probability)
+
+            current_node.set_fillcolor(selected_color)
+
+        else:
+            left_child_probability, left_child_color = \
+                self._color_nodes(graph, left_child, tree)
+            right_child_probability, right_child_color = \
+                self._color_nodes(graph, right_child, tree)
+
+            if left_child_color == right_child_color:
+                selected_color = left_child_color
+            elif left_child_probability > 0.5 and right_child_probability > 0.5:
+                selected_color = self._get_current_node_color(current_node_probability)
+            else:
+                selected_color = "white"
+
+            current_node.set_fillcolor(selected_color)
+
+        self._edit_node_label(current_node, current_node_probability)
+        return current_node_probability, selected_color
+
+    def _edit_node_label(self,
+                         node,
+                         node_probability):
+        label = node.obj_dict["attributes"].get("label")
+        label_lines = label.split("\\n")
+        is_a_leaf = len(label_lines) == 2
+        if not is_a_leaf:
+            edited_label = label_lines[0][1:]
+        elif node_probability > 0.5:
+            edited_label = self.get_predicted_label()
+        elif node_probability < self.unknown_boundary_probability:
+            edited_label = "Other label"
+        else:
+            edited_label = "Inconclusive"
+
+
+        node.set_label(edited_label)
+
+    def _color_decision_path(self, clf, graph):
+        decision_path = clf.decision_path(self.explained_sample)
+        for node_id, node_value in enumerate(decision_path.toarray()[0]):
+            if node_value == 0:
+                continue
+            node = graph.get_node(str(node_id))[0]
+            node.set_fillcolor('deepskyblue')
+
+    def _get_current_node_color(self,
+                                current_node_probability):
+        if current_node_probability < self.unknown_boundary_probability:
+            selected_color = self.colors_palette_10_negative
+        elif current_node_probability < .50:
+            selected_color = self.colors_palette_10_unknown
+        else:
+            for boundary_probability, color_code in self.colors_palette_10_positive.items():
+                if current_node_probability > boundary_probability:
+                    selected_color = color_code
+                    break
+            else:
+                selected_color = "white"
+
+        return selected_color
+
+    def _get_winning_subexplainer(self):
+        subexplainers_ensemble = self.local_surrogates_ensemble
+        if len(subexplainers_ensemble) == 0:
+            return None
+
+        prediction = self.get_prediction_for_explained_model()
+        predicted_label_id = np.argmax(prediction)
+        return subexplainers_ensemble[predicted_label_id]
+
+    def get_predicted_label(self):
+        prediction = self.get_prediction_for_explained_model()
+        predicted_label_id = np.argmax(prediction)
+        return self.class_names[predicted_label_id]

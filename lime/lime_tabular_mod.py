@@ -252,6 +252,8 @@ class LimeTabularExplainerMod(LimeTabularExplainer):
         """
         new_explanation = explanation_mod.ExplanationMod(
             domain_mapper,
+            inversed_data[0].reshape(1, -1),
+            feature_names=self.feature_names,
             class_names=self.class_names)
 
         label_indices_to_explain, prediction_results = \
