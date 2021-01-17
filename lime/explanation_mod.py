@@ -294,6 +294,47 @@ class ExplanationMod(Explanation):
         plt.legend()
         plt.show()
 
+    def get_decision_rules_for_explanation(self):
+
+        clf = self._get_winning_subexplainer()
+        feature = clf.tree_.feature
+        threshold = clf.tree_.threshold
+
+        explanation_txt = f"Sklasyfikowano jako '{self.get_predicted_label()}', ponieważ:\n"
+        node_indicator = clf.decision_path(self.explained_sample)
+        leaf_id = clf.apply(self.explained_sample)
+
+        sample_id = 0
+        # obtain ids of the nodes `sample_id` goes through, i.e., row `sample_id`
+        node_index = node_indicator.indices[node_indicator.indptr[sample_id]:
+                                            node_indicator.indptr[sample_id + 1]]
+
+        for i, node_id in enumerate(node_index):
+            # continue to the next node if it is a leaf node
+            if leaf_id[sample_id] == node_id:
+                continue
+
+            # check if value of the split feature for sample 0 is below threshold
+            if (self.explained_sample[0, feature[node_id]] <= threshold[node_id]):
+                threshold_sign = "<="
+            else:
+                threshold_sign = ">"
+
+            if i != 0:
+                explanation_txt += "\toraz\t"
+            else:
+                explanation_txt += "\t\t"
+            explanation_txt += "cecha {feature_name} (o wartości {value}) była {inequality} {threshold}\n".format(
+                feature_name=self.feature_names[feature[node_id]],
+                value=self.explained_sample[0, feature[node_id]],
+                inequality=threshold_sign,
+                threshold=round(threshold[node_id], 3)
+            )
+
+        return explanation_txt
+
+
+
     def render_explanation_tree(self,
                                 file_to_render="tree.png"):
 
