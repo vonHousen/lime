@@ -80,3 +80,4 @@ doc/notebooks/data/
 doc/notebooks/etc/tmp/
 /doc/mod/data/
 *-checkpoint.ipynb
+*.png
