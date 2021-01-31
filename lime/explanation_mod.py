@@ -508,6 +508,8 @@ class ExplanationMod(Explanation):
         subexplainers_ensemble = self.local_surrogates_ensemble
         if len(subexplainers_ensemble) == 0:
             return None
+        if len(subexplainers_ensemble) == 1:
+            return subexplainers_ensemble[-1]
 
         prediction = self.get_prediction_for_explained_model()
         predicted_label_id = np.argmax(prediction)
