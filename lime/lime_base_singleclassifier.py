@@ -18,7 +18,6 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
                  kernel_fn=None,
                  verbose=False,
                  random_state=None,
-                 max_depth=None,
                  **decision_tree_kwargs):
         """Init function
 
@@ -39,11 +38,7 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
 
         if len({"random_state", "max_depth"} & decision_tree_kwargs.keys()) > 0:
             raise RuntimeError("Argument in decision_tree_kwargs not allowed!")
-        self.model_classifier = DecisionTreeClassifier(
-            random_state=self.random_state,
-            max_depth=max_depth,
-            **decision_tree_kwargs
-        )
+        self.decision_tree_kwargs = decision_tree_kwargs
 
     def explain_instance_with_data(self,
                                    neighborhood_data,
@@ -81,7 +76,10 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
                 distances,
                 "none",
                 label_indices_to_explain,
-                self.model_classifier,
+                DecisionTreeClassifier(
+                    random_state=self.random_state,
+                    max_depth=num_features,
+                    **self.decision_tree_kwargs),
                 neighborhood_data,
                 neighborhood_labels,
                 num_features)

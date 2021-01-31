@@ -98,10 +98,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             sample_around_instance,
             random_state,
             training_data_stats,
-            custom_lime_base=LimeBaseSingleDecisionTree(
-                max_depth=max_depth,
-                **decision_tree_kwargs
-            ),
+            custom_lime_base=LimeBaseSingleDecisionTree(**decision_tree_kwargs),
             with_kfold=with_kfold,
             use_inversed_data_for_training=use_inversed_data_for_training
         )
@@ -177,6 +174,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
             new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
             new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
 
+        new_explanation.local_surrogates_ensemble[-1] = local_surrogate
         if top_labels == yss.shape[1]:
             new_explanation.prediction_loss_on_training_data = prediction_loss_on_training_data
             new_explanation.squared_errors_matrix = squared_errors_matrix
