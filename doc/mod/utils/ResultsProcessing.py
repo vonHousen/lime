@@ -199,5 +199,5 @@ class CompareResults:
         ax.set_xticklabels(labels)
         ax.legend()
         ax.grid(axis='y')
-        fig.show()
 
+        return fig
