@@ -4,7 +4,9 @@ Custom modification of LimeTabularExplainerMod - uses LimeBaseSingleDecisionTree
 import warnings
 import numpy as np
 from sklearn.model_selection import KFold
+from collections import defaultdict
 
+import lime.tools as lime_utils
 import lime.explanation_mod as explanation_mod
 from lime.lime_tabular_mod import LimeTabularExplainerMod
 from lime.lime_base_singleclassifier import LimeBaseSingleDecisionTree
@@ -35,7 +37,6 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                  training_data_stats=None,
                  with_kfold=None,
                  use_inversed_data_for_training=False,
-                 max_depth=None,
                  **decision_tree_kwargs):
         """Init function.
 
@@ -125,6 +126,9 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
 
         label_indices_to_explain, prediction_results = \
             self._prepare_explanation(distances, new_explanation, top_labels, yss)
+
+        if self.with_kfold is not None:
+            kf = KFold(n_splits=self.with_kfold, shuffle=True, random_state=42)
         if self.use_inversed_data_for_training:
             data_to_train_local_surrogate = inversed_data
         else:
@@ -144,107 +148,127 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                 feature_selection=self.feature_selection)
 
         data_used_to_train_local_surrogate = data_to_train_local_surrogate[:, used_features]
-        (prediction_on_explained_instance,
-         prediction_score_on_training_data,
-         prediction_loss_on_training_data,
-         squared_errors_matrix) = self._evaluate_explainer(
+        new_explanation.local_surrogates_ensemble[-1] = local_surrogate
+
+        (new_explanation.prediction_for_surrogate_model,
+         new_explanation.scores_on_generated_data,
+         new_explanation.losses_on_generated_data,
+         squared_errors_matrix_for_label_idx) = self._evaluate_explainer(
             local_surrogate,
             data_used_to_train_local_surrogate,
             prediction_results)
 
-        if self.with_kfold is not None:
-            kf = KFold(n_splits=self.with_kfold, shuffle=True, random_state=42)
-            (cv_evaluation_results, cv_subexplainers, cv_used_features) = self._cross_validate_subexplainer(
-                distances,
-                label_indices_to_explain,
-                model_regressor,
-                num_features,
-                data_to_train_local_surrogate,
-                yss,
-                prediction_results,
-                kf)
-
         for i, label_idx in enumerate(label_indices_to_explain):
-
-            if self.with_kfold is not None:
-                new_explanation.cv_evaluation_results[label_idx] = cv_evaluation_results
-
             new_explanation.local_exp[label_idx] = feature_with_coef
-            new_explanation.prediction_for_surrogate_model[label_idx] = prediction_on_explained_instance[i]
-            new_explanation.scores_on_generated_data[label_idx] = prediction_score_on_training_data
-            new_explanation.losses_on_generated_data[label_idx] = prediction_loss_on_training_data
 
-        new_explanation.local_surrogates_ensemble[-1] = local_surrogate
+        if self.with_kfold is not None:
+            (cv_evaluation_results_for_label_idx,
+             cv_subexplainers,
+             cv_used_features) =\
+                self._cross_validate_subexplainer(
+                    distances,
+                    label_indices_to_explain,
+                    model_regressor,
+                    num_features,
+                    data_to_train_local_surrogate,
+                    yss,
+                    prediction_results,
+                    kf)
+            new_explanation.cv_evaluation_results = cv_evaluation_results_for_label_idx
+
         if top_labels == yss.shape[1]:
-            new_explanation.prediction_loss_on_training_data = prediction_loss_on_training_data
-            new_explanation.squared_errors_matrix = squared_errors_matrix
+            (new_explanation.prediction_loss_on_training_data,
+             new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
+                local_surrogate,
+                label_indices_to_explain,
+                data_subset_for_each_explainer=data_used_to_train_local_surrogate,
+                training_data=data_to_train_local_surrogate,
+                expected_probabilities=prediction_results
+            )
 
             if self.with_kfold is not None:
-                new_explanation.ensemble_mse_for_cv = cv_evaluation_results
+                new_explanation.ensemble_mse_for_cv = self._cross_validate_ensemble(
+                    kf,
+                    label_indices_to_explain,
+                    dataset=data_to_train_local_surrogate,
+                    expected_probabilities=prediction_results,
+                    cv_subexplainers=cv_subexplainers,
+                    cv_used_features=cv_used_features
+                )
 
         return new_explanation
 
     def _cross_validate_subexplainer(self,
                                      distances,
-                                     label_idx,
+                                     label_indices_to_explain,
                                      model_regressor,
                                      num_features,
                                      training_data,
                                      yss,
-                                     labels_column,
+                                     prediction_results,
                                      kf):
-        """
-        Performs cross validation on given data.
-        :return: np.array of evaluation results - MSE.
-        """
-        evaluation_results = []
+        cv_evaluation_results_for_label_idx = defaultdict(list)
         cv_subexplainers = []
-        used_features_all = []
+        cv_used_features = []
         for train_indices, test_indices in kf.split(training_data):
             (_, _, cv_subexplainer, used_features, _) =\
                 self.base.explain_instance_with_data(
                     training_data[train_indices],
                     yss[train_indices],
                     distances[train_indices],
-                    label_idx,
+                    label_indices_to_explain,
                     num_features,
-                    model_regressor=model_regressor,
                     feature_selection=self.feature_selection)
+
             row_x_indices = np.reshape(test_indices, (-1, 1))
             column_x_indices = np.repeat(np.reshape(used_features, (1, -1)), test_indices.shape[0], axis=0)
             test_x_data = training_data[row_x_indices, column_x_indices]
-            test_y_data = labels_column[test_indices]
+            test_y_data = prediction_results[test_indices]
             predicted = convert_decimal_output_to_binary(
                 cv_subexplainer.predict(test_x_data), classes_count=test_y_data.shape[1])
-            evaluation_results.append(metrics.mean_squared_error(test_y_data, predicted))
 
+            for label_idx in label_indices_to_explain:
+                cv_evaluation_results_for_label_idx[label_idx].append(metrics.mean_squared_error(
+                    test_y_data[:, label_idx], predicted[:, label_idx]
+                ))
             cv_subexplainers.append(cv_subexplainer)
-            used_features_all.append(used_features)
+            cv_used_features.append(used_features)
 
-        return evaluation_results, cv_subexplainers, used_features_all
-
+        return (cv_evaluation_results_for_label_idx,
+                cv_subexplainers,
+                cv_used_features)
 
     @staticmethod
     def _evaluate_explainer(local_surrogate,
                             training_data,
-                            labels):
+                            prediction_results):
         """
         Evaluates the local surrogate on data used for its training (subset of features only),
         using built-in score function. Because local surrogate is a classifier, prediction score is not calculated.
         """
-        prediction_score_on_training_data = 0.0
-        predictions_on_training_data = convert_decimal_output_to_binary(
-            local_surrogate.predict(training_data), classes_count=labels.shape[1])
-        squared_errors_matrix = (labels - predictions_on_training_data)**2
-        prediction_loss_on_training_data = metrics.mean_squared_error(
-            y_true=labels, y_pred=predictions_on_training_data
-        )
-        prediction_on_explained_instance = predictions_on_training_data[0, :]
+        prediction_on_explained_instance_for_label_idx = {}
+        prediction_score_on_training_data_for_label_idx = {}
+        prediction_loss_on_training_data_for_label_idx = {}
+        squared_errors_matrix_for_label_idx = {}
 
-        return prediction_on_explained_instance, \
-               prediction_score_on_training_data, \
-               prediction_loss_on_training_data, \
-               squared_errors_matrix
+        predictions_on_training_data_matrix = convert_decimal_output_to_binary(
+            local_surrogate.predict(training_data), classes_count=prediction_results.shape[1])
+
+        for label_idx in range(prediction_results.shape[1]):
+            predictions_on_training_data = predictions_on_training_data_matrix[:, label_idx]
+            expected_predictions = prediction_results[:, label_idx]
+            squared_errors_matrix_for_label_idx[label_idx] = \
+                (expected_predictions - predictions_on_training_data) ** 2
+            prediction_loss_on_training_data_for_label_idx[label_idx] = metrics.mean_squared_error(
+                y_true=expected_predictions, y_pred=predictions_on_training_data
+            )
+            prediction_on_explained_instance_for_label_idx[label_idx] = predictions_on_training_data[0]
+            prediction_score_on_training_data_for_label_idx[label_idx] = 1.0
+
+        return (prediction_on_explained_instance_for_label_idx,
+                prediction_score_on_training_data_for_label_idx,
+                prediction_loss_on_training_data_for_label_idx,
+                squared_errors_matrix_for_label_idx)
 
     @staticmethod
     def _get_prediction_results(yss):
@@ -253,3 +277,52 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         prediction_results = np.zeros_like(yss, dtype="int32")
         prediction_results[np.arange(prediction_results.shape[0]), predicted_labels] = 1
         return prediction_results
+
+    @staticmethod
+    def _cross_validate_ensemble(kf,
+                                 label_indices_to_explain,
+                                 dataset,
+                                 expected_probabilities,
+                                 cv_subexplainers,
+                                 cv_used_features):
+        """
+        Evaluates ensemble of subexplainers with KFold, by comparing their normalized probabilities and expected ones,
+        without weighing them. Note that each explainer might use different subset of data (different features).
+        Loss function is MSE, normalization function: lime.utils.custom_normalize.
+        """
+        evaluation_results = []
+        for fold_idx, (train_indices, test_indices) in enumerate(kf.split(dataset)):
+            row_x_indices_for_fold = np.reshape(test_indices, (-1, 1))
+            test_y_data_for_fold = expected_probabilities[test_indices]
+
+            subexplainer = cv_subexplainers[fold_idx]
+            used_features_for_subexplainer = cv_used_features[fold_idx]
+            column_x_indices = np.repeat(
+                np.reshape(used_features_for_subexplainer, (1, -1)),
+                test_indices.shape[0],
+                axis=0)
+            test_x_data = dataset[row_x_indices_for_fold, column_x_indices]
+            predicted_probabilities = convert_decimal_output_to_binary(
+                subexplainer.predict(test_x_data), classes_count=len(label_indices_to_explain))
+
+            predicted_probabilities_normalized = lime_utils.custom_normalize(predicted_probabilities, axis=1)
+            mse_for_fold = metrics.mean_squared_error(
+                y_true=test_y_data_for_fold, y_pred=predicted_probabilities_normalized)
+            evaluation_results.append(mse_for_fold)
+
+        return evaluation_results
+
+    @staticmethod
+    def _evaluate_ensemble(local_surrogate,
+                           label_indices_to_explain,
+                           data_subset_for_each_explainer,
+                           training_data,
+                           expected_probabilities):
+
+        predicted_probabilities = convert_decimal_output_to_binary(
+            local_surrogate.predict(training_data), classes_count=expected_probabilities.shape[1])
+        prediction_loss_on_training_data = metrics.mean_squared_error(
+            y_true=expected_probabilities, y_pred=predicted_probabilities)
+        squared_errors_matrix = (expected_probabilities - predicted_probabilities)**2
+
+        return prediction_loss_on_training_data, squared_errors_matrix

@@ -120,9 +120,10 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
         used_features = self._get_best_features(
             regression_labels_columns, feature_selection, neighborhood_data, num_features, weights)
         data_to_train_local_surrogate = neighborhood_data[:, used_features]
+        expected_labels = convert_binary_output_to_decimal(classification_labels_columns)
         local_surrogate.fit(
             data_to_train_local_surrogate,
-            convert_binary_output_to_decimal(classification_labels_columns),
+            expected_labels,
             sample_weight=weights)
         return data_to_train_local_surrogate, local_surrogate, used_features, weights
 
@@ -137,6 +138,9 @@ class LimeBaseSingleDecisionTree(LimeBaseMod):
         The self.feature_selection() method takes only one label at once, so it is executed in a loop, then - the most
             popular labels will be selected.
         """
+        if feature_selection == "none":
+            return np.array(range(neighborhood_data.shape[1]))
+
         counter_for_feature = defaultdict(int)
         for column in regression_labels_columns.T:
             used_features = self.feature_selection(
