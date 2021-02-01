@@ -148,19 +148,22 @@ class ResultsProcessing:
             data=self.fidelity_loss_on_kfold_std,
             data_desc="fidelity losses (CV - std) on generated data")
 
-    def plot_fidelity_loss_distribution(self, domain_unit="Quantiles"):
-        fig, axs = plt.subplots(nrows=len(self.models) // 3, ncols=3)
+    def plot_fidelity_loss_distribution(self, domain_unit="Kwantyle"):
+        fig, axs = plt.subplots(nrows=len(self.models) // 3, ncols=3, sharex=True)
         fig.set_figwidth(15)
         fig.set_figheight(7)
-        fig.suptitle(f"Mean distribution of fidelity loss on quantified distance", fontsize=16)
-        fig.tight_layout(pad=4.0)
+        fig.suptitle(f"Uśredniony rozkład błędu utraty odwzorowania wg odległości od wyjaśnianego przykładu", fontsize=16)
+        fig.tight_layout(pad=3.0, h_pad=4.0)
         for model_idx, (classifier_name, model) in enumerate(self.models):
             idx_row = floor(model_idx / 3)
             idx_col = model_idx % 3
             axs[idx_row][idx_col].plot(np.mean(self.fidelity_loss_distribution[model_idx, :], axis=0))
-            axs[idx_row][idx_col].set_ylabel(f"Fidelity loss of samples")
-            axs[idx_row][idx_col].set_xlabel(f"{domain_unit} of samples' distance")
-            axs[idx_row][idx_col].set_title(f"explained model: {classifier_name}")
+            axs[idx_row][idx_col].set_title(f"wyjaśniany model: {classifier_name}")
+        axs[0][0].set_ylabel(f"Miara utraty odwzorowania próbek")
+        axs[1][0].set_ylabel(f"Miara utraty odwzorowania próbek")
+        axs[1][0].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
+        axs[1][1].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
+        axs[1][2].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
         plt.show()
 
 
