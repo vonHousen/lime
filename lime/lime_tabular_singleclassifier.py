@@ -120,6 +120,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         new_explanation = explanation_mod.ExplanationMod(
             domain_mapper,
             inversed_data[0].reshape(1, -1),
+            num_features=num_features,
             class_names=self.class_names,
             feature_names=self.feature_names
         )
