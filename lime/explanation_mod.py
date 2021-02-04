@@ -18,7 +18,9 @@ class ExplanationMod(Explanation):
                  explained_sample,
                  class_names=None,
                  random_state=None,
-                 feature_names=None):
+                 feature_names=None,
+                 num_features=None,
+                 ):
         """
         Args:
             domain_mapper: must inherit from DomainMapper class
@@ -45,6 +47,7 @@ class ExplanationMod(Explanation):
         self._local_surrogates_ensemble = {}
         self.feature_names = feature_names
         self.explained_sample = explained_sample
+        self.num_features = num_features
 
         self.colors_palette_10_positive = {
             0.9: "#006837",
@@ -333,8 +336,6 @@ class ExplanationMod(Explanation):
 
         return explanation_txt
 
-
-
     def render_explanation_tree(self,
                                 file_to_render="tree.png"):
 
@@ -519,3 +520,32 @@ class ExplanationMod(Explanation):
         prediction = self.get_prediction_for_explained_model()
         predicted_label_id = np.argmax(prediction)
         return self.class_names[predicted_label_id]
+
+    def as_list(self, label=1, **kwargs):
+        """Returns the explanation as a list.
+
+        Args:
+            label: desired label. If you ask for a label for which an
+                explanation wasn't computed, will throw an exception.
+                Will be ignored for regression explanations.
+            kwargs: keyword arguments, passed to domain_mapper
+
+        Returns:
+            list of tuples (representation, weight), where representation is
+            given by domain_mapper. Weight is a float.
+        """
+        label_to_use = label if self.mode == "classification" else self.dummy_label
+        mapped_features_with_importance = self.domain_mapper.map_exp_ids(self.local_exp[label_to_use], **kwargs)
+        if self.num_features is None:
+            filtered_features_imporatance =\
+                [(x[0], float(x[1])) for x in mapped_features_with_importance if float(x[1]) > 0.0]
+        else:
+            filtered_features_imporatance = []
+            for i, (feature, feature_importance_str) in enumerate(mapped_features_with_importance):
+                if i >= self.num_features:
+                    break
+                feature_importance = float(feature_importance_str)
+                filtered_features_imporatance.append((feature, feature_importance))
+
+        return filtered_features_imporatance
+
