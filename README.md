@@ -8,15 +8,12 @@ This is the forked version of original LIME repository. Contains modified versio
 ## Najważniejsze zmienione elementy biblioteki
 
 - `doc/mod/` - katalog zawierający środowisko testowe, czyli wszystkie zmiany związane z prowadzeniem badań efektywności
-<br />
-<br />
+
     - `doc/mod/data/` - katalog przechowujący zbiory danych w oryginalnej formie, wykorzystane w środowisku testowym 
         - `doc/mod/data/img/` - katalog zawierający obrazki przedstawiające wygenerowane wyjaśnienia
-<br />
-<br />      
+
     - `doc/mod/saved_results/` - katalog przechowujący surowe wyniki przeprowadzonych eksperymentów (pliki o przyrostku `*_v4.npy`)
-<br />
-<br />
+
     - `doc/mod/notebooks/` - katalog przechowujący notatniki `jupyter notebook` wykorzystane w prowadzonych badaniach:
         - `doc/mod/notebooks/EfficiencyTest_*` - pliki o tym przedrostku to notatniki, które opisują przeprowadzone badania efektywności
         - `doc/mod/notebooks/DatasetLookup.ipynb` - notatnik służący przeglądaniu zbiorów danych składających się na środowisko testowe
@@ -24,11 +21,9 @@ This is the forked version of original LIME repository. Contains modified versio
         - `doc/mod/notebooks/NormalizationMethods.ipynb` - notatnik prezentujący zaprojektowaną metodę normalizacji
         - `doc/mod/notebooks/test_*.ipynb` - pliki o tym przedrostku to notatniki zawierające proste testy użycia zaimplementowanych modyfikacji
         - `doc/mod/notebooks/tree_explanation_multiregressor.ipynb` - plik generujący zaimplementowane nowe formy wyjaśnienia w postaci grafu reguł (obrazki) oraz tekstowej
-<br />
-<br />      
+
     - `doc/mod/utils/` - katalog do przechowywania pomocniczych modułów wykorzystywanych w środowisku testowym 
-<br />
-<br />      
+   
 - `lime/` - pakiet stanowiący serce biblioteki, przechowujący moduły służące do generowania wyjaśnień
     - `lime/explanation.py`, `lime/explanation_mod.py` - klasy reprezentujące wyjaśnienie predykcji
     - `lime/lime_base.py`, `lime/lime_base_mod.py` - klasy bazowe, odpowiadające za trening modelu zastępującego
