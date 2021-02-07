@@ -3,6 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import floor
 
+"""
+Module containing classes used for results processing (postprocessing phase). 
+"""
+
 
 class ResultsProcessing:
 
@@ -79,35 +83,35 @@ class ResultsProcessing:
             fig.set_figwidth(5 * self.labels_count)
             fig.set_figheight(4)
             fig.suptitle(
-                f"Histogram for {data_desc} for surrogate model \n explained model: {classifier_name}", fontsize=16)
+                f"Histogram {data_desc} \n wyjaśniany model: {classifier_name}", fontsize=16)
             fig.tight_layout(pad=2.0)
             for idx in range(self.labels_count):
                 data_to_plot = data[model_idx, :, idx]
                 mean_value = float(np.mean(data_to_plot))
                 axs[idx].hist(data_to_plot, bins=30)
                 axs[idx].axvline(mean_value, color="red", linestyle="--")
-                axs[idx].set_title(f"#{idx} label {data_desc} | mean={round(mean_value, 4)}")
+                axs[idx].set_title(f"#{idx} klasa | średnia={round(mean_value, 4)}")
             plt.show()
 
     def plot_scores_for_surrogate_model(self):
         self._plot_for_each_label(
             data=self.scores_for_surrogate_model,
-            data_desc="scores")
+            data_desc="miary score na części treningowej")
 
     def plot_losses_for_surrogate_model(self):
         self._plot_for_each_label(
             data=self.losses_for_surrogate_model,
-            data_desc="losses")
+            data_desc="MSE na części treningowej")
 
     def plot_losses_mean_for_cv_model(self):
         self._plot_for_each_label(
             data=self.losses_mean_for_cv_model,
-            data_desc="losses (CV - mean)")
+            data_desc="MSE (CV - wartość średnia)")
 
     def plot_losses_std_for_cv_model(self):
         self._plot_for_each_label(
             data=self.losses_std_for_cv_model,
-            data_desc="losses (CV - std)")
+            data_desc="MSE (CV - odchylenie standardowe)")
 
     def _plot_for_each_model(self,
                              data,
@@ -115,7 +119,7 @@ class ResultsProcessing:
         fig, axs = plt.subplots(nrows=len(self.models) // 3, ncols=3)
         fig.set_figwidth(15)
         fig.set_figheight(7)
-        fig.suptitle(f"Histogram for {data_desc}", fontsize=16)
+        fig.suptitle(f"Histogram {data_desc}", fontsize=16)
         fig.tight_layout(pad=2.0)
         for model_idx, (classifier_name, model) in enumerate(self.models):
             idx_row = floor(model_idx / 3)
@@ -125,42 +129,45 @@ class ResultsProcessing:
             axs[idx_row][idx_col].hist(data_to_plot, bins=30)
             axs[idx_row][idx_col].axvline(mean_value, color="red", linestyle="--")
             axs[idx_row][idx_col].set_title(
-                f"explained model: {classifier_name} | mean={round(mean_value, 4)}")
+                f"model wyjaśniany: {classifier_name} | średnia={round(mean_value, 4)}")
         plt.show()
 
     def plot_fidelity_loss_on_explanation(self):
         self._plot_for_each_model(
             data=self.fidelity_loss_on_explanation,
-            data_desc="fidelity losses on explanation")
+            data_desc="błędu odwzorowania na wyjaśnianym przykładzie")
 
     def plot_fidelity_losses_on_generated_data(self):
         self._plot_for_each_model(
             data=self.fidelity_loss_on_generated_data,
-            data_desc="fidelity losses on generated data")
+            data_desc="błędu odwzorowania na zbiorze syntetycznym (część treningowa)")
 
     def plot_fidelity_loss_on_kfold_mean(self):
         self._plot_for_each_model(
             data=self.fidelity_loss_on_kfold_mean,
-            data_desc="fidelity losses (CV - mean) on generated data")
+            data_desc="błędu odwzorowania (CV - wartości średnie) na zbiorze syntetycznym")
 
     def plot_fidelity_loss_on_kfold_std(self):
         self._plot_for_each_model(
             data=self.fidelity_loss_on_kfold_std,
-            data_desc="fidelity losses (CV - std) on generated data")
+            data_desc="błędu odwzorowania (CV - odchylenie standardowe) na zbiorze syntetycznym")
 
     def plot_fidelity_loss_distribution(self, domain_unit="Quantiles"):
         fig, axs = plt.subplots(nrows=len(self.models) // 3, ncols=3)
         fig.set_figwidth(15)
         fig.set_figheight(7)
-        fig.suptitle(f"Mean distribution of fidelity loss on quantified distance", fontsize=16)
-        fig.tight_layout(pad=4.0)
+        fig.suptitle(f"Uśredniony rozkład błędu utraty odwzorowania wg odległości od wyjaśnianego przykładu", fontsize=16)
+        fig.tight_layout(pad=3.0, h_pad=4.0)
         for model_idx, (classifier_name, model) in enumerate(self.models):
             idx_row = floor(model_idx / 3)
             idx_col = model_idx % 3
             axs[idx_row][idx_col].plot(np.mean(self.fidelity_loss_distribution[model_idx, :], axis=0))
-            axs[idx_row][idx_col].set_ylabel(f"Fidelity loss of samples")
-            axs[idx_row][idx_col].set_xlabel(f"{domain_unit} of samples' distance")
-            axs[idx_row][idx_col].set_title(f"explained model: {classifier_name}")
+            axs[idx_row][idx_col].set_title(f"wyjaśniany model: {classifier_name}")
+        axs[0][0].set_ylabel(f"Miara utraty odwzorowania próbek")
+        axs[1][0].set_ylabel(f"Miara utraty odwzorowania próbek")
+        axs[1][0].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
+        axs[1][1].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
+        axs[1][2].set_xlabel(f"Kolejne {domain_unit} odległości od wyjaśnienego przykładu")
         plt.show()
 
 

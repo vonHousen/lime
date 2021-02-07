@@ -14,7 +14,6 @@
 build/
 doc/notebooks/.ipynb_checkpoints/
 doc/mod/tmp/
-/doc/mod/data/
 
 
 # Created by https://www.gitignore.io/api/pycharm
@@ -78,5 +77,4 @@ fabric.properties
 venv/
 doc/notebooks/data/
 doc/notebooks/etc/tmp/
-/doc/mod/data/
 *-checkpoint.ipynb

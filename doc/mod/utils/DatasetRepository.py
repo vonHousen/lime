@@ -3,6 +3,10 @@ import re
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+"""
+Module containing classes used for dataset processing (preprocessing phase). 
+"""
+
 
 class DatasetRepository:
     def __init__(self, path_to_data_dir):

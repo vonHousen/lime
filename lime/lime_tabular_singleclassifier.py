@@ -120,6 +120,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
         new_explanation = explanation_mod.ExplanationMod(
             domain_mapper,
             inversed_data[0].reshape(1, -1),
+            num_features=num_features,
             class_names=self.class_names,
             feature_names=self.feature_names
         )
@@ -176,6 +177,7 @@ class LTESingleDecisionTree(LimeTabularExplainerMod):
                     kf)
             new_explanation.cv_evaluation_results = cv_evaluation_results_for_label_idx
 
+        new_explanation.local_surrogates_ensemble[-1] = local_surrogate
         if top_labels == yss.shape[1]:
             (new_explanation.prediction_loss_on_training_data,
              new_explanation.squared_errors_matrix) = self._evaluate_ensemble(
